@@ -1,65 +1,74 @@
-# Dependencies
-node_modules/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Build outputs
-dist/
-build/
-out/
+# dependencies
+/node_modules
+**/node_modules/
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Logs
-logs
-*.log
+# testing
+/coverage
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# next.js
+/.next/
+/out/
 
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# production
+/build
+
+# misc
 .DS_Store
-Thumbs.db
+*.pem
 
-# OS generated files
-.DS_Store?
-ehthumbs.db
-Icon?
-Thumbs.db
-
-# Temporary files
-tmp/
-temp/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Recording files (specific to your project)
-recordings/
-
-# npm
-package-lock.json
-yarn.lock
-.npm/
-
-# Testing
-coverage/
-.nyc_output/
-
-# Typescript
-*.tsbuildinfo
-
-# Debug
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# Various
-*.tgz
-*.7z
-*.dmg
-*.rnp
-*.app
+# env files (can opt-in for committing if needed)
+.env*
+.env.local
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# E2B template builds
+*.tar.gz
+e2b-template-*
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+repomix-output.txt
+bun.lockb
+
+.agents-core
+.agents-core_devops
+.claude
+.clinerules
+.codex
+.cursor
+.gemini
+.qwen
+.trae
+.bmad-raw
+.resources
+.web-ui
+
+/recordings
+**/recordings/

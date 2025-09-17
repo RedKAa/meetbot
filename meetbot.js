@@ -99,6 +99,43 @@ async function waitForMeetingAdmission(page, timeoutMs) {
     throw new Error('Not admitted within timeout');
 }
 
+async function sendSessionStarted(page, meetingUrl, botName) {
+    const startedAt = new Date().toISOString();
+    const payload = {
+        type: 'SessionStarted',
+        meetingUrl,
+        botName,
+        startedAt
+    };
+
+    const MAX_ATTEMPTS = 10;
+    const DELAY_MS = 500;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const sent = await page.evaluate(async (payload) => {
+            const ws = window.ws;
+            if (!ws || typeof ws.sendJson !== 'function') {
+                return false;
+            }
+            try {
+                ws.sendJson(payload);
+                return true;
+            } catch (error) {
+                console.error('SessionStarted send failed', error);
+                return false;
+            }
+        }, payload);
+
+        if (sent) {
+            return true;
+        }
+
+        await page.waitForTimeout(DELAY_MS);
+    }
+
+    return false;
+}
+
 // ====== Main flow ======
 async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECONDS_DEFAULT) {
     log('Launch browser...');
@@ -180,10 +217,35 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
         await joinMeeting(page, meetingUrl, botName);
 
         // init websocket client after joined meeting room
-        await page.evaluate(() => window._initwsc && window._initwsc());
+        const wsInitialised = await page.evaluate(() => {
+            if (typeof window._initwsc === 'function') {
+                window._initwsc();
+                return true;
+            }
+            return false;
+        });
+        log('WebSocket client ' + (wsInitialised ? 'initialised' : 'not available yet'));
 
         log('Wait admission...');
         await waitForMeetingAdmission(page, 300000); // 5 mins
+
+        log('Send session handshake...');
+        const handshakeSent = await sendSessionStarted(page, meetingUrl, botName);
+        if (!handshakeSent) {
+            log('SessionStarted handshake not acknowledged; continuing without confirmed metadata');
+        }
+
+        log('Enable media streaming...');
+        const mediaEnabled = await page.evaluate(async () => {
+            if (window.ws?.enableMediaSending) {
+                await window.ws.enableMediaSending();
+                return true;
+            }
+            return false;
+        });
+        if (!mediaEnabled) {
+            log('Failed to enable media sending; window.ws.enableMediaSending missing');
+        }
 
         log('Wait UI stabilize...');
         await page.waitForTimeout(8000);
