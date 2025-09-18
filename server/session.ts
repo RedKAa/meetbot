@@ -69,13 +69,18 @@ export class Session {
   private readonly sessionLogger: Logger;
   private readonly participantInfo = new Map<string, ParticipantInfo>();
   private readonly participantWriters = new Map<string, ParticipantWriterState>();
+  private readonly participantLabels = new Map<string, string>();
   private readonly audioFiles: AudioFilesSummary = {};
   private mixedAudioWriter?: WavWriter;
+  private pendingMixedAudio: Buffer[] = [];
+  private pendingParticipantAudio = new Map<string, Buffer[]>();
   private warnedMissingMixedFormat = false;
   private warnedMissingParticipantFormat = false;
   private readonly startHr = process.hrtime.bigint();
   private lastMessageHr = this.startHr;
   private closed = false;
+  private inactivityTimer?: NodeJS.Timeout;
+  private readonly INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(private readonly deps: SessionDeps) {
     const { config, logger, socket, remoteAddress, userAgent } = deps;
@@ -101,6 +106,9 @@ export class Session {
     socket.on('message', (data: RawData) => this.handleMessage(data));
     socket.once('close', () => this.close('client_close'));
     socket.once('error', (err: Error) => this.close('socket_error', err));
+
+    // Start inactivity monitoring
+    this.resetInactivityTimer();
   }
 
   handleMessage(message: RawData): void {
@@ -114,6 +122,7 @@ export class Session {
     }
 
     this.lastMessageHr = process.hrtime.bigint();
+    this.resetInactivityTimer();
 
     try {
       this.dispatch(buf);
@@ -196,6 +205,10 @@ export class Session {
       this.handleUsersUpdate(event as UsersUpdateEvent);
     }
 
+    if (event.type === 'MeetingStatusChange') {
+      this.handleMeetingStatusChange(event as any);
+    }
+
     if (!this.metaState.meetingUrl) {
       const fallbackUrl = (event as Record<string, unknown>).meetingUrl;
       if (typeof fallbackUrl === 'string') {
@@ -209,14 +222,46 @@ export class Session {
     if (!format || typeof format.sampleRate !== 'number') {
       return;
     }
-    this.metaState.audioFormat = {
+    const normalised: AudioFormat = {
       sampleRate: format.sampleRate,
       numberOfChannels: format.numberOfChannels ?? 1,
       numberOfFrames: format.numberOfFrames,
       format: format.format
     };
-    this.metadata.audioFormat = this.metaState.audioFormat;
+    this.metaState.audioFormat = normalised;
+    this.metadata.audioFormat = normalised;
+
+    this.flushPendingAudio(normalised);
   }
+
+  private flushPendingAudio(format: AudioFormat): void {
+    if (this.pendingMixedAudio.length && this.deps.config.enableMixedAudio) {
+      const writer = this.ensureMixedAudioWriter(format);
+      if (writer) {
+        for (const chunk of this.pendingMixedAudio) {
+          writer.write(convertFloat32ToInt16(chunk));
+        }
+      }
+      this.pendingMixedAudio = [];
+    }
+
+    if (this.pendingParticipantAudio.size && this.deps.config.enablePerParticipantAudio) {
+      for (const [participantId, buffers] of this.pendingParticipantAudio.entries()) {
+        if (!buffers.length) {
+          continue;
+        }
+        const writerState = this.ensureParticipantWriter(participantId, format);
+        if (!writerState) {
+          continue;
+        }
+        for (const chunk of buffers) {
+          writerState.writer.write(convertFloat32ToInt16(chunk));
+        }
+      }
+      this.pendingParticipantAudio.clear();
+    }
+  }
+
 
   private handleUsersUpdate(event: UsersUpdateEvent): void {
     const candidates = [
@@ -251,6 +296,7 @@ export class Session {
     }
     const format = this.metaState.audioFormat;
     if (!format) {
+      this.pendingMixedAudio.push(Buffer.from(payload));
       if (!this.warnedMissingMixedFormat) {
         this.sessionLogger.warn('Mixed audio received before AudioFormatUpdate');
         this.warnedMissingMixedFormat = true;
@@ -290,6 +336,9 @@ export class Session {
 
     const format = this.metaState.audioFormat;
     if (!format) {
+      const queue = this.pendingParticipantAudio.get(participantId) ?? [];
+      queue.push(Buffer.from(audioData));
+      this.pendingParticipantAudio.set(participantId, queue);
       if (!this.warnedMissingParticipantFormat) {
         this.sessionLogger.warn('Participant audio received before AudioFormatUpdate');
         this.warnedMissingParticipantFormat = true;
@@ -328,7 +377,11 @@ export class Session {
     }
 
     const info = this.participantInfo.get(participantId);
-    const label = buildParticipantLabel(participantId, info);
+    let label = this.participantLabels.get(participantId);
+    if (!label) {
+      label = buildParticipantLabel(participantId, info);
+      this.participantLabels.set(participantId, label);
+    }
     const participantDir = path.join(this.baseDir, PARTICIPANTS_DIR, label);
     ensureDir(participantDir);
     const fileName = `combined_${label}.wav`;
@@ -345,11 +398,35 @@ export class Session {
     return state;
   }
 
+  private resetInactivityTimer(): void {
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+    }
+    
+    this.inactivityTimer = setTimeout(() => {
+      this.sessionLogger.warn('Session inactive for too long, closing');
+      this.close('inactivity_timeout');
+    }, this.INACTIVITY_TIMEOUT_MS);
+  }
+
+  private handleMeetingStatusChange(event: any): void {
+    if (event.change === 'removed_from_meeting') {
+      this.sessionLogger.info('Bot was removed from meeting, closing session');
+      this.close('removed_from_meeting');
+    }
+  }
+
   close(reason: string, error?: unknown): void {
     if (this.closed) {
       return;
     }
     this.closed = true;
+
+    // Clear inactivity timer
+    if (this.inactivityTimer) {
+      clearTimeout(this.inactivityTimer);
+      this.inactivityTimer = undefined;
+    }
 
     const { socket } = this.deps;
 
@@ -381,7 +458,27 @@ export class Session {
       const summaryPath = path.join(this.baseDir, SUMMARY_FILE);
       await fs.promises.writeFile(summaryPath, JSON.stringify(summary, null, 2));
 
-      this.sessionLogger.info({ reason, durationMs, idleMs }, 'Session closed');
+      const archiveInfo = await this.archiveSession(summary);
+      if (archiveInfo) {
+        this.metadata.archivePath = archiveInfo.archiveRelativePath;
+        this.metadata.manifestPath = archiveInfo.manifestRelativePath;
+
+        const enrichedSummary: SessionSummary = {
+          ...summary,
+          metadata: {
+            ...summary.metadata,
+            archivePath: archiveInfo.archiveRelativePath,
+            manifestPath: archiveInfo.manifestRelativePath
+          }
+        };
+
+        const archivedSummaryPath = path.join(archiveInfo.archivePath, SUMMARY_FILE);
+        await fs.promises.writeFile(archivedSummaryPath, JSON.stringify(enrichedSummary, null, 2));
+
+        this.sessionLogger.info({ reason, durationMs, idleMs, archivePath: archiveInfo.archiveRelativePath }, 'Session closed');
+      } else {
+        this.sessionLogger.info({ reason, durationMs, idleMs }, 'Session closed');
+      }
     };
 
     if (this.telemetryStream.closed) {
@@ -395,6 +492,45 @@ export class Session {
         });
       });
     }
+  }
+
+  private async archiveSession(summary: SessionSummary): Promise<{ archivePath: string; archiveRelativePath: string; manifestRelativePath: string } | null> {
+    const completedRoot = path.join(this.deps.config.recordingsRoot, 'completed');
+    ensureDir(completedRoot);
+
+    const baseName = buildArchiveFolderName(this.metaState.meetingUrl, summary.metadata.startedAtIso, this.id);
+    let destination = path.join(completedRoot, baseName);
+    let attempt = 1;
+    while (await pathExists(destination)) {
+      const suffix = String(attempt++).padStart(2, '0');
+      destination = path.join(completedRoot, baseName + '_' + suffix);
+    }
+
+    try {
+      await fs.promises.mkdir(path.dirname(destination), { recursive: true });
+      await fs.promises.rename(this.baseDir, destination);
+    } catch (err) {
+      this.sessionLogger.error({ err }, 'Failed to archive session directory');
+      return null;
+    }
+
+    const files = await listRelativeFiles(destination);
+    const manifest = {
+      sessionId: summary.sessionId,
+      meetingUrl: this.metaState.meetingUrl ?? null,
+      botName: this.metaState.botName ?? null,
+      startedAt: summary.metadata.startedAtIso,
+      archivedAt: new Date().toISOString(),
+      files
+    };
+
+    const manifestPath = path.join(destination, 'archive.json');
+    await fs.promises.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const archiveRelativePath = path.relative(this.deps.config.recordingsRoot, destination);
+    const manifestRelativePath = path.relative(this.deps.config.recordingsRoot, manifestPath);
+
+    return { archivePath: destination, archiveRelativePath, manifestRelativePath };
   }
 
   private async closeAudioWriters(): Promise<void> {
@@ -473,5 +609,72 @@ function generateRandomDigits(count: number): string {
   const max = Math.pow(10, count) - 1;
   const value = Math.floor(Math.random() * (max - min + 1)) + min;
   return String(value);
+}
+
+async function pathExists(target: string): Promise<boolean> {
+  try {
+    await fs.promises.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function listRelativeFiles(root: string): Promise<Array<{ path: string; size: number }>> {
+  const files: Array<{ path: string; size: number }> = [];
+  await collectRelativeFiles(root, root, files);
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  return files;
+}
+
+async function collectRelativeFiles(current: string, base: string, acc: Array<{ path: string; size: number }>): Promise<void> {
+  const entries = await fs.promises.readdir(current, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      await collectRelativeFiles(fullPath, base, acc);
+    } else if (entry.isFile()) {
+      const stats = await fs.promises.stat(fullPath);
+      acc.push({ path: path.relative(base, fullPath).replace(/\\\\/g, '/'), size: stats.size });
+    }
+  }
+}
+
+function buildArchiveFolderName(meetingUrl: string | undefined, startedAtIso: string | undefined, sessionId: string): string {
+  const meetingSlug = sanitizeArchiveSegment(extractMeetingSlug(meetingUrl));
+  const timestamp = formatArchiveTimestamp(startedAtIso);
+  const sessionSlug = sessionId.slice(0, 8);
+  return 'meeting_' + meetingSlug + '_' + timestamp + '_' + sessionSlug;
+}
+
+function extractMeetingSlug(meetingUrl: string | undefined): string {
+  if (!meetingUrl) {
+    return 'unknown';
+  }
+  try {
+    const parsed = new URL(meetingUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    return segments.pop() ?? parsed.hostname;
+  } catch {
+    return meetingUrl;
+  }
+}
+
+function formatArchiveTimestamp(iso?: string): string {
+  const date = iso ? new Date(iso) : new Date();
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  }
+  const fallback = iso ?? new Date().toISOString();
+  return fallback.replace(/[^0-9A-Za-z]+/g, '').slice(0, 16) || 'timestamp';
+}
+
+function sanitizeArchiveSegment(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase() || 'segment';
 }
 

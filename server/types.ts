@@ -64,6 +64,8 @@ export interface SessionMetadataSnapshot {
   startedAtIso: string;
   audioFormat?: AudioFormat;
   audioFiles?: AudioFilesSummary;
+  archivePath?: string;
+  manifestPath?: string;
 }
 
 export interface SessionSummary {
