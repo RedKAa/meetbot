@@ -83,3 +83,13 @@ function ensureDir(dir: string): void {
   }
 }
 
+// Global config instance
+let globalConfig: RecorderConfig | null = null;
+
+export function getConfig(): RecorderConfig {
+  if (!globalConfig) {
+    globalConfig = loadConfig();
+  }
+  return globalConfig;
+}
+

@@ -81,8 +81,17 @@ SEND_PER_PARTICIPANT_AUDIO=true
 CAPTURE_VIDEO_FRAMES=false
 
 # Optional: PhoWhisper integration
-PHO_WHISPER_WEBHOOK_URL=
+PHO_WHISPER_WEBHOOK_URL=http://your-pho-whisper-server.com
 ```
+
+### PhoWhisper Integration
+
+MeetBot integrates with PhoWhisper for automatic transcription and summarization:
+
+- **PHO_WHISPER_WEBHOOK_URL**: Base URL for your PhoWhisper service
+- The service expects `/transcribe` and `/summarize` endpoints
+- Transcription and summarization happen automatically after meetings end
+- Results are saved in `transcripts/` and `summaries/` folders within each archived meeting
 
 ## Sử dụng
 
@@ -113,6 +122,28 @@ node meetbot.js "https://meet.google.com/abc-defg-hij" "RecordingBot" 1800
 node meetbot.js "https://meet.google.com/abc-defg-hij"
 ```
 
+Bot sẽ tự động:
+- Kết nối tới WebSocket server
+- Enable media streaming
+- Ghi âm từ tất cả participants
+- Detect meeting lifecycle events
+- Archive recordings khi meeting kết thúc
+- Xử lý recordings với PhoWhisper để transcription và summarization
+
+### Testing PhoWhisper Integration
+
+Để test PhoWhisper integration với existing meeting recordings:
+
+```bash
+npm run test:pho-whisper
+```
+
+Script này sẽ:
+- Tìm completed meeting recordings
+- Xử lý chúng qua PhoWhisper
+- Tạo transcripts và summaries
+- Verify output files được tạo đúng
+
 ### 3. Monitoring
 
 Server logs sẽ hiển thị:
@@ -132,6 +163,14 @@ recordings/completed/meeting_<slug>_<timestamp>_<session>/
 ├── session-summary.json           # Session statistics
 ├── telemetry.ndjson               # Raw telemetry data
 ├── mixed_audio.wav                # Mixed audio stream
+├── transcripts/                   # PhoWhisper transcriptions
+│   ├── mixed_audio.txt           # Full meeting transcript
+│   └── participants/
+│       └── <DisplayName>_<DeviceId>.txt  # Per-participant transcripts
+├── summaries/                     # PhoWhisper summaries
+│   ├── meeting_summary.txt       # Overall meeting summary
+│   └── participants/
+│       └── <DisplayName>_<DeviceId>_summary.txt  # Per-participant summaries
 └── participants/
     └── <DisplayName>_<DeviceId>/
         ├── info.json              # Participant metadata

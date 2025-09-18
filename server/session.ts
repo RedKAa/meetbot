@@ -17,6 +17,7 @@ import {
   UsersUpdateEvent
 } from './types';
 import { WavWriter, convertFloat32ToInt16 } from './audio';
+import { PhoWhisperService } from './pho-whisper';
 
 const TELEMETRY_FILE = 'telemetry.ndjson';
 const SUMMARY_FILE = 'session-summary.json';
@@ -530,6 +531,11 @@ export class Session {
     const archiveRelativePath = path.relative(this.deps.config.recordingsRoot, destination);
     const manifestRelativePath = path.relative(this.deps.config.recordingsRoot, manifestPath);
 
+    // Process with PhoWhisper if configured
+    this.processPhoWhisper(destination).catch(err => {
+      this.sessionLogger.error({ err }, 'PhoWhisper processing failed, but archive completed successfully');
+    });
+
     return { archivePath: destination, archiveRelativePath, manifestRelativePath };
   }
 
@@ -553,6 +559,17 @@ export class Session {
     }
 
     await Promise.all(closures);
+  }
+
+  private async processPhoWhisper(archivePath: string): Promise<void> {
+    try {
+      const phoWhisperService = new PhoWhisperService();
+      await phoWhisperService.processMeetingFolder(archivePath);
+      this.sessionLogger.info({ archivePath }, 'PhoWhisper processing completed successfully');
+    } catch (error) {
+      this.sessionLogger.error({ error, archivePath }, 'PhoWhisper processing failed');
+      throw error;
+    }
   }
 }
 

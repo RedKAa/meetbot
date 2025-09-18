@@ -46,28 +46,54 @@ Typical `type` values emitted so far:
 ## Target recording layout
 ```
 recordings/
-  meeting_<meetingId>_<ISO8601Timestamp>/
-    meeting_metadata.json
-    mixed_audio.wav
-    participants_summary.json
-    participants/
-      <displayName>_<deviceId>/
-        info.json
-        activity.log
-        combined_<displayName>_<deviceId>.wav
-        audio_tracks/
-          track_<deviceId>_<trackId>_<timestamp>.wav
+  completed/
+    meeting_<meetingId>_<ISO8601Timestamp>_<sessionId>/
+      archive.json                    # Meeting manifest with metadata
+      session-summary.json           # Session statistics
+      telemetry.ndjson              # Raw telemetry events
+      mixed_audio.wav               # Combined audio stream
+      transcripts/                  # PhoWhisper transcription results
+        mixed_transcript.txt        # Full meeting transcript
+        participants/
+          <displayName>_transcript.txt
+      summaries/                    # PhoWhisper summarization results
+        meeting_summary.txt         # Overall meeting summary
+        participants/
+          <displayName>_summary.txt
+      participants/
+        <displayName>_<deviceId>/
+          info.json                 # Participant metadata
+          activity.log             # Join/leave/speaking events
+          combined_<displayName>.wav  # Combined audio for participant
+          audio_tracks/
+            track_*.wav            # Individual audio tracks
+  live/                           # Active recording sessions
+    session_<sessionId>/
+      # Same structure but without transcripts/summaries
 ```
 
-## Gaps to close for an MVP
-1. **WebSocket server**: implement `server/index.js` (or similar) that listens on port 8765, parses the binary framing above, and persists data under `recordings/`. Persist per-connection context (meeting URL, bot name, timestamps) so metadata files can be written once the meeting ends.
-2. **Auto-enable media streaming**: after the Meet tab finishes admission, call `page.evaluate(() => window.ws?.enableMediaSending?.())` in `meetbot.js`. Without it, every `send*` helper exits early.
-3. **Audio persistence**: convert Float32 samples to 16-bit little-endian PCM, write streaming WAV files for mixed audio and per-participant tracks, and roll files when participants change speaking state. Track sample rate from `AudioFormatUpdate` and add silence padding if chunks arrive late.
-4. **Participant/session metadata**: maintain a mapping of `deviceId` -> participant info using `UsersUpdate` and `DeviceOutputsUpdate`. Use it to create `info.json`, `activity.log` (join/leave/speaking events), and populate `participants_summary.json`.
-5. **Video chunks (optional for MVP)**: decide whether to store raw I420 frames or transcode them. For an initial version we can drop video frames but keep timestamps for possible future use.
-6. **Meeting lifecycle detection**: derive meeting start/end timestamps from the first `UsersUpdate` + last activity (e.g. bot removed or all participants left). Finalise WAV headers and metadata, then hand off.
-7. **PhoWhisper hand-off**: after each meeting folder is sealed, enqueue a job (cron or message queue) that pushes the mixed audio or per-speaker WAVs into PhoWhisper for ASR, stores transcripts next to the meeting folder, runs summarisation per-speaker + whole meeting, and writes outputs (e.g. `transcripts/`, `summaries/`).
-8. **Command channel (future)**: extend `WebSocketClient.handleMessage` so the backend can trigger `botOutputManager` actions (play PCM, display image, etc.) to fully automate the bot persona.
+## Implementation Status
+
+### ✅ Completed MVP Features
+1. **WebSocket server** ✅: Implemented `server/index.ts` with TypeScript, listens on port 8765, parses binary framing, and persists data under `recordings/`. Maintains per-connection context with meeting metadata.
+
+2. **Auto-enable media streaming** ✅: Added `enableMediaStreamingWithRetry()` function in `meetbot.js` with retry logic for robust media streaming activation after meeting admission.
+
+3. **Audio persistence** ✅: Implemented in `server/audio.ts` and `server/session.ts` - converts Float32 samples to 16-bit PCM, writes streaming WAV files for mixed audio and per-participant tracks, tracks sample rate from `AudioFormatUpdate`.
+
+4. **Participant/session metadata** ✅: Implemented comprehensive participant tracking in `server/session.ts` - maintains `deviceId` -> participant mapping using `UsersUpdate` and `DeviceOutputsUpdate`, creates `info.json`, `activity.log`, and `participants_summary.json`.
+
+5. **Meeting lifecycle detection** ✅: Added inactivity timeout detection (5 minutes), handles `MeetingStatusChange` events for bot removal, proper session cleanup and archiving when meeting ends.
+
+### 🔄 Next Phase: PhoWhisper Integration
+6. **PhoWhisper transcription & summarization**: Implement post-meeting processing pipeline that:
+   - Calls `/transcribe` endpoint with audio files to get text transcripts
+   - Calls `/summarize` endpoint with transcripts to generate summaries
+   - Stores results in meeting folders as `transcripts/` and `summaries/`
+
+### 🚀 Future Enhancements
+7. **Video chunks (optional)**: Store raw I420 frames or transcode them for screen recording capabilities.
+8. **Command channel**: Extend `WebSocketClient.handleMessage` for backend-triggered bot actions (play PCM, display image, etc.).
 
 ## Pending decisions / open questions
 - What identifier should seed `meeting_<meetingId>`? Currently only the Meet URL is known client-side. We may need to hash the URL + start timestamp or let the server assign an ID via a JSON command back to the page.
