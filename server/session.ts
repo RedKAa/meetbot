@@ -440,18 +440,38 @@ function normaliseMessage(message: RawData): Buffer {
 }
 
 function buildParticipantLabel(participantId: string, info?: ParticipantInfo): string {
-  const nameSource = info?.displayName || info?.fullName || 'participant';
-  const namePart = sanitizeSegment(nameSource) || 'participant';
-  const idPart = sanitizeSegment(participantId).slice(-8) || 'id';
-  return `${namePart}_${idPart}`;
+  const randomPart = generateRandomDigits(3);
+  const nameSource = info?.fullName || info?.displayName || 'participant';
+  const namePart = normalizeParticipantName(nameSource);
+  const deviceSuffix = extractDeviceSuffix(participantId);
+  return `${namePart}_${deviceSuffix}_${randomPart}`;
 }
 
-function sanitizeSegment(value: string): string {
-  return value
+function normalizeParticipantName(value: string): string {
+  const normalized = value
     .normalize('NFKD')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 48)
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '')
     .toLowerCase();
+  return normalized.length ? normalized.slice(0, 48) : 'participant';
+}
+
+function extractDeviceSuffix(participantId: string): string {
+  const numericMatch = participantId.match(/(\d+)(?!.*\d)/);
+  if (numericMatch) {
+    return numericMatch[1];
+  }
+  const digits = participantId.replace(/[^0-9]/g, '');
+  if (digits.length) {
+    return digits.slice(-3);
+  }
+  return 'id';
+}
+
+function generateRandomDigits(count: number): string {
+  const min = Math.pow(10, count - 1);
+  const max = Math.pow(10, count) - 1;
+  const value = Math.floor(Math.random() * (max - min + 1)) + min;
+  return String(value);
 }
 
