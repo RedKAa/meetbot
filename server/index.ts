@@ -7,6 +7,7 @@ import { loadConfig, RecorderConfig } from './config';
 import { logger as rootLogger } from './logger';
 import type { Logger } from './logger';
 import { Session } from './session';
+import { startApiServer } from './http';
 
 export interface RecorderContext {
   config: RecorderConfig;
@@ -67,7 +68,9 @@ export function startRecorderServer(context: RecorderContext = createRecorderCon
 }
 
 if (require.main === module) {
-  startRecorderServer();
+  const ctx = createRecorderContext();
+  startRecorderServer(ctx);
+  startApiServer(ctx);
 }
 
 function extractRemote(request: IncomingMessage): { remoteAddress?: string; userAgent?: string | string[] } {
@@ -87,5 +90,6 @@ function ensureDir(dir: string): void {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
+
 
 

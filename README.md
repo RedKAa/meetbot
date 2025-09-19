@@ -278,3 +278,16 @@ Nếu gặp issues:
 2. Review `recordings/live/` cho active sessions
 3. Check `telemetry.ndjson` files cho debugging
 4. Create issue với logs và reproduction steps
+## Web UI (Brownfield)
+
+A lightweight web UI is served by the new HTTP API server.
+
+- Configure port with `HTTP_PORT` (default 3000)
+- Start dev server: `npm run dev:server` (starts WS and HTTP together)
+- Open: `http://localhost:3000/`
+
+Features:
+- Start Recording by pasting meeting URL (optional bot name and duration)
+- List Live and Completed sessions
+- Session details: play mixed audio and per-participant audio, view mixed transcript, per-participant transcripts, and summaries (when available)
+

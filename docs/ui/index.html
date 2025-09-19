@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MeetBot UI</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 0; color: #111; }
+    header { background: #0d6efd; color: white; padding: 12px 16px; }
+    main { padding: 16px; display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+    section { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px; }
+    h2 { margin-top: 0; font-size: 16px; }
+    input, button { padding: 8px; font-size: 14px; }
+    input { width: 100%; box-sizing: border-box; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .mb8 { margin-bottom: 8px; }
+    .session-list { max-height: 300px; overflow: auto; }
+    .muted { color: #666; }
+    .pill { display:inline-block; padding:2px 6px; border-radius: 999px; background:#e9ecef; font-size:12px; margin-left:8px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+    audio { width: 100%; }
+    pre { white-space: pre-wrap; background:#fff; padding:8px; border:1px solid #ddd; border-radius:6px; max-height:240px; overflow:auto; }
+    .small { font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>MeetBot</strong>
+    <span class="pill" id="health-pill">checking...</span>
+  </header>
+  <main>
+    <section>
+      <h2>Start Recording</h2>
+      <div class="mb8">
+        <label class="small">Meeting URL</label>
+        <input id="meetingUrl" placeholder="https://meet.google.com/..." />
+      </div>
+      <div class="mb8">
+        <label class="small">Bot Name</label>
+        <input id="botName" value="HopFast" />
+      </div>
+      <div class="mb8">
+        <label class="small">Duration (sec, optional)</label>
+        <input id="durationSec" type="number" min="0" placeholder="e.g. 180" />
+      </div>
+      <div class="row">
+        <button id="startBtn">Start</button>
+        <span class="muted small" id="startMsg"></span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sessions</h2>
+      <div class="row mb8">
+        <button id="refreshBtn">Refresh</button>
+        <span class="muted small">Live and Completed</span>
+      </div>
+      <div class="grid">
+        <div>
+          <h3 class="small">Live</h3>
+          <div id="liveList" class="session-list"></div>
+        </div>
+        <div>
+          <h3 class="small">Completed</h3>
+          <div id="completedList" class="session-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <section style="grid-column: 1 / -1; margin: 0 16px 16px 16px;">
+    <h2>Session Details</h2>
+    <div id="details">
+      <div class="muted small">Select a session to view details.</div>
+    </div>
+  </section>
+
+<script>
+const apiBase = '';
+const healthPill = document.getElementById('health-pill');
+const startBtn = document.getElementById('startBtn');
+const startMsg = document.getElementById('startMsg');
+const meetingUrl = document.getElementById('meetingUrl');
+const botName = document.getElementById('botName');
+const durationSec = document.getElementById('durationSec');
+const liveList = document.getElementById('liveList');
+const completedList = document.getElementById('completedList');
+const refreshBtn = document.getElementById('refreshBtn');
+const details = document.getElementById('details');
+let pollTimer = null;
+let currentSessionId = null;
+
+async function fetchJson(path, opts) {
+  const res = await fetch(apiBase + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return await res.json();
+}
+
+async function health() {
+  try {
+    await fetchJson('/api/health');
+    healthPill.textContent = 'online';
+    healthPill.style.background = '#d1e7dd';
+  } catch {
+    healthPill.textContent = 'offline';
+    healthPill.style.background = '#f8d7da';
+  }
+}
+
+startBtn.onclick = async () => {
+  startMsg.textContent = '';
+  try {
+    const body = {
+      meetingUrl: meetingUrl.value.trim(),
+      botName: botName.value.trim(),
+      durationSec: durationSec.value ? Number(durationSec.value) : undefined,
+    };
+    const res = await fetch(apiBase + '/api/recordings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      startMsg.textContent = 'Started PID ' + data.pid;
+      startMsg.style.color = '#198754';
+      await refresh();
+    } else {
+      startMsg.textContent = data.error || 'Failed to start';
+      startMsg.style.color = '#dc3545';
+    }
+  } catch (e) {
+    startMsg.textContent = e.message;
+    startMsg.style.color = '#dc3545';
+  }
+};
+
+refreshBtn.onclick = refresh;
+
+async function refresh() {
+  const [live, completed] = await Promise.all([
+    fetchJson('/api/sessions/live').catch(() => ({ items: [] })),
+    fetchJson('/api/sessions/completed').catch(() => ({ items: [] })),
+  ]);
+  renderList(liveList, live.items || [], 'live');
+  renderList(completedList, completed.items || [], 'completed');
+  if (currentSessionId) {
+    await showDetails(currentSessionId, /*keepPolling*/ false);
+  }
+}
+
+function renderList(container, items, kind) {
+  container.innerHTML = '';
+  if (!items.length) {
+    container.innerHTML = '<div class="muted small">No ' + kind + ' sessions</div>';
+    return;
+  }
+  for (const item of items) {
+    const btn = document.createElement('button');
+    btn.textContent = item.id;
+    btn.style.display = 'block';
+    btn.style.width = '100%';
+    btn.style.textAlign = 'left';
+    btn.style.whiteSpace = 'nowrap';
+    btn.style.overflow = 'hidden';
+    btn.style.textOverflow = 'ellipsis';
+    btn.className = 'mb8';
+    btn.onclick = () => showDetails(item.id, true);
+    container.appendChild(btn);
+  }
+}
+
+async function showDetails(id, keepPolling) {
+  currentSessionId = id;
+  clearInterval(pollTimer);
+  const data = await fetchJson('/api/sessions/' + encodeURIComponent(id));
+  const parts = [];
+  parts.push('<div class="small muted">Session: ' + id + ' (' + data.kind + ')</div>');
+  // Media
+  parts.push('<h3 class="small">Media</h3>');
+  if (data.files?.mixedAudio) {
+    parts.push('<div><label class="small">Mixed Audio</label><audio controls src="' + fileUrl(id, data.files.mixedAudio) + '"></audio></div>');
+  } else {
+    parts.push('<div class="muted small">No mixed audio yet</div>');
+  }
+  // Participants audio
+  if (data.participants?.length) {
+    parts.push('<div class="grid">');
+    for (const p of data.participants) {
+      if (p.audio) {
+        parts.push('<div><label class="small">' + escapeHtml(p.label) + '</label><audio controls src="' + fileUrl(id, p.audio) + '"></audio></div>');
+      }
+    }
+    parts.push('</div>');
+  }
+  // Transcripts
+  parts.push('<h3 class="small">Transcripts</h3>');
+  if (data.files?.mixedTranscript) {
+    const text = await fetch(fileUrl(id, data.files.mixedTranscript)).then(r => r.text()).catch(() => '');
+    if (text) parts.push('<div><label class="small">Meeting Transcript</label><pre>' + escapeHtml(text) + '</pre></div>');
+  }
+  if (data.participants?.length) {
+    for (const p of data.participants) {
+      if (p.transcript) {
+        const text = await fetch(fileUrl(id, p.transcript)).then(r => r.text()).catch(() => '');
+        parts.push('<div><label class="small">' + escapeHtml(p.label) + ' Transcript</label><pre>' + escapeHtml(text) + '</pre></div>');
+      }
+    }
+  }
+  // Summaries
+  parts.push('<h3 class="small">Summaries</h3>');
+  if (data.files?.meetingSummary) {
+    const text = await fetch(fileUrl(id, data.files.meetingSummary)).then(r => r.text()).catch(() => '');
+    if (text) parts.push('<div><label class="small">Meeting Summary</label><pre>' + escapeHtml(text) + '</pre></div>');
+  }
+  if (data.participants?.length) {
+    for (const p of data.participants) {
+      if (p.summary) {
+        const text = await fetch(fileUrl(id, p.summary)).then(r => r.text()).catch(() => '');
+        parts.push('<div><label class="small">' + escapeHtml(p.label) + ' Summary</label><pre>' + escapeHtml(text) + '</pre></div>');
+      }
+    }
+  }
+
+  details.innerHTML = parts.join('');
+
+  if (keepPolling && data.kind === 'completed') {
+    // No need to poll completed session – files won't change further
+    return;
+  }
+  if (keepPolling) {
+    pollTimer = setInterval(() => showDetails(id, false).catch(()=>{}), 5000);
+  }
+}
+
+function fileUrl(id, rel) {
+  return '/api/sessions/' + encodeURIComponent(id) + '/files/' + rel.replace(/^\/+/, '');
+}
+
+function escapeHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+health().then(refresh);
+</script>
+</body>
+</html>

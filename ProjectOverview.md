@@ -102,3 +102,64 @@ recordings/
 
 
 
+## Brownfield Web UI Plan
+
+Goal: Add a lightweight web UI on top of the existing recorder and archive outputs so a user can input a meeting URL, start a recording session, play recorded media, and browse transcripts and summaries (overall and per-participant) after the meeting completes.
+
+Scope assumptions
+- Reuse current WebSocket recorder (`server/index.ts`, `server/session.ts`) as-is.
+- Launch meeting joins via the existing `meetbot.js` CLI (meeting URL, bot name, duration).
+- Read artifacts from `recordings/live/` and `recordings/completed/` as the system of record.
+- Consume PhoWhisper outputs written by `server/pho-whisper.ts` at archive time: `transcripts/` and `summaries/`.
+
+Architecture outline
+- Add a small HTTP API and static file server alongside the existing WebSocket server.
+- UI is a simple SPA served by the API (simple ts file).
+- Orchestrator endpoint spawns `meetbot.js` with user-provided params; API exposes lists and details from archive manifests.
+
+High-level user flows
+1) Start recording: user pastes meeting URL, sets bot name (default: 'HopFast Bot') and optional duration, submits; backend spawns `meetbot.js` and shows a "live" session until archived.
+2) Explore sessions: user sees Live and Completed sessions; selects a completed session.
+3) Review details: user can play mixed audio, browse per-participant audio, read transcripts per-participant, and view meeting + per-participant summaries.
+
+API surface (proposed)
+- POST `/api/recordings` body: `{ meetingUrl, botName?, durationSec? }` -> { requestId | pid } and basic status.
+- GET `/api/sessions/live` -> sessions under `recordings/live/` with minimal metadata.
+- GET `/api/sessions/completed` -> parsed `archive.json` + `session-summary.json` for listings.
+- GET `/api/sessions/:id` -> details (manifest, summary, availability of transcripts/summaries).
+- GET `/api/sessions/:id/files/*` -> static file proxy into the archive folder for audio/transcripts/summaries.
+- Optional: GET `/api/health` and `/api/settings` for UI bootstrapping.
+
+UI views (proposed)
+- Start Recording: form with meeting URL, bot name, duration; submit to `POST /api/recordings`.
+- Sessions: tabs for Live and Completed; polling refresh every ~10s.
+- Session Details: sections for Media (HTML5 audio for `mixed_audio.wav` and per-participant WAVs), Transcripts (mixed + per-participant text), Summaries (meeting + per-participant), and Raw Artifacts (links to files).
+
+Acceptance criteria
+- Starting a recording via the UI launches `meetbot.js` with provided parameters and shows a pending/live state until the session archives.
+- Completed sessions list shows meeting slug, start time, duration, and links to details.
+- Details page can play mixed audio in-browser and list per-participant audio files.
+- Transcripts are visible for the meeting and each participant when available; otherwise a clear "processing" state is shown.
+- Summaries are displayed for the meeting and each participant when available.
+- All file access uses safe relative paths with no directory traversal.
+
+Implementation checklist
+- [x] Add HTTP API server (new server/http.ts) to serve JSON endpoints and static files under 
+ecordings/.
+- [x] Implement orchestrator endpoint to spawn meetbot.js with { meetingUrl, botName, durationSec } and basic process tracking.
+- [x] Add listings endpoints for live and completed sessions (parse rchive.json and session-summary.json).
+- [x] Serve archived artifacts (audio/transcripts/summaries) via a static route (read-only, no traversal).
+- [x] Scaffold web UI (SPA) and wire base API client; serve from the same HTTP server.
+- [x] Build Start Recording view with form validation and submission flow.
+- [x] Build Sessions view showing Live and Completed with polling.
+- [x] Build Session Details view with: mixed audio player, participant audio list, transcript (mixed + participant) viewers, summaries section.
+- [x] Implement processing-state polling for transcripts/summaries until PhoWhisper outputs exist.
+- [x] Add minimal configuration (port, recordings root, CORS if needed) and secure inputs.
+- [x] Update README with run/dev/build instructions and screenshots.
+
+Notes
+- Keep the recorder WebSocket protocol unchanged; the UI consumes only filesystem artifacts and simple JSON APIs.
+- If desired later, a live telemetry view can subscribe to new events via a server-sent events (SSE) or a dedicated WebSocket, but it is out of scope for this pass.
+
+
+
