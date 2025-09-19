@@ -217,14 +217,11 @@ async function recordGoogleMeet(meetingUrl, botName, recordSeconds = RECORD_SECO
         await joinMeeting(page, meetingUrl, botName);
 
         // init websocket client after joined meeting room
-        const wsInitialised = await page.evaluate(() => {
-            if (typeof window._initwsc === 'function') {
+        await page.evaluate(() => {
+            if (!window.ws && typeof window._initwsc === 'function') {
                 window._initwsc();
-                return true;
             }
-            return false;
         });
-        log('WebSocket client ' + (wsInitialised ? 'initialised' : 'not available yet'));
 
         log('Wait admission...');
         await waitForMeetingAdmission(page, 300000); // 5 mins

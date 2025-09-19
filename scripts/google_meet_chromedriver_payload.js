@@ -66,7 +66,7 @@ class StyleManager {
         
         // If average deviation is above threshold, we have audio activity
         if (averageDeviation > this.silenceThreshold) {
-            window.ws.sendJson({
+            wsProvider()?.sendJson({
                 type: 'SilenceStatus',
                 volume: averageDeviation,
                 isSilent: false
@@ -76,7 +76,7 @@ class StyleManager {
 
     checkMemoryUsage() {
         // Useful for debugging memory usage
-        window.ws.sendJson({
+        wsProvider()?.sendJson({
             type: 'MemoryUsage',
             memoryUsage: {
                 jsHeapSizeLimit: performance.memory?.jsHeapSizeLimit,
@@ -97,18 +97,18 @@ class StyleManager {
             if (joinNowButton) {
                 try {
                     joinNowButton.click();
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'UiInteraction',
                         message: 'Automatically accepted recording notification'
                     });
                 } catch (error) {
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'Error',
                         message: 'Error clicking button to accept recording notification'
                     });
                 }                
             } else {                
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'Found recording dialog but could not find button to accept recording notification'
                 });
@@ -118,7 +118,7 @@ class StyleManager {
         // Check if bot has been removed from the meeting
         const removedFromMeetingElement = document.querySelector('.roSPhc');
         if (removedFromMeetingElement && (removedFromMeetingElement.textContent.includes('You\'ve been removed from the meeting') || removedFromMeetingElement.textContent.includes('Your host ended the meeting for everyone'))) {
-            window.ws.sendJson({
+            wsProvider()?.sendJson({
                 type: 'MeetingStatusChange',
                 change: 'removed_from_meeting'
             });
@@ -242,7 +242,7 @@ class StyleManager {
 
                         // Send mixed audio data via websocket
                         const timestamp = performance.now();
-                        window.ws.sendMixedAudio(timestamp, audioData);
+                        wsProvider()?.sendMixedAudio(timestamp, audioData);
                         
                         // Pass through the original frame
                         controller.enqueue(frame);
@@ -293,7 +293,7 @@ class StyleManager {
             const deviceIdOfBot = window.userManager.currentUserId;
             if (!deviceIdOfBot)
             {
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'In hideBotVideoElement, window.userManager.currentUserId was null.'
                 });
@@ -302,7 +302,7 @@ class StyleManager {
             const botVideoElement = document.querySelector(`[data-participant-id="${deviceIdOfBot}"]`);
             if (!botVideoElement)
             {
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'In hideBotVideoElement, no bot video element found.'
                 });
@@ -311,7 +311,7 @@ class StyleManager {
             const botOtherOptionsButton = botVideoElement.querySelector('button[aria-label="More options"]');
             if (!botOtherOptionsButton)
             {
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'In hideBotVideoElement, no bot other options button found.'
                 });
@@ -330,7 +330,7 @@ class StyleManager {
                 }
                 const wasLastAttempt = i === numAttempts - 1;
                 if (wasLastAttempt) {
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'Error',
                         message: 'In hideBotVideoElement, no bot minimize button found after polling.'
                     });
@@ -342,7 +342,7 @@ class StyleManager {
         }
         else
         {
-            window.ws.sendJson({
+            wsProvider()?.sendJson({
                 type: 'Error',
                 message: 'In hideBotVideoElement, no other users in meeting. So unable to minimize bot video element.'
             });
@@ -359,7 +359,7 @@ class StyleManager {
             }
             const wasLastAttempt = i === numAttempts - 1;
             if (wasLastAttempt) {
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'In hideBotVideoElement, no bot minimized element found after polling.'
                 });
@@ -398,7 +398,7 @@ class StyleManager {
             this.mainElement = document.querySelector('main');
             if (!this.mainElement) {
                 console.error('No <main> element found in the DOM');
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'Error',
                     message: 'No <main> element found in the DOM'
                 });
@@ -424,7 +424,7 @@ class StyleManager {
             await this.hideBotVideoElement();
         } catch (error) {
             console.error('Error in onlyShowSubsetofGMeetUI:', error);
-            window.ws.sendJson({
+            wsProvider()?.sendJson({
                 type: 'Error',
                 message: 'Error in onlyShowSubsetofGMeetUI: ' + error.message
             });
@@ -466,7 +466,7 @@ class StyleManager {
                 // Add the missing click action
                 unpinButton.click();
 
-                window.ws.sendJson({
+                wsProvider()?.sendJson({
                     type: 'UiInteraction',
                     message: 'Unpinned pinned video',
                     participantListItemDom: participantListItem.outerHTML
@@ -492,7 +492,7 @@ class StyleManager {
                 const wasLastAttempt = i === numAttempts - 1;
                 if (wasLastAttempt) {
                     console.log('Failed to find participant list after', numAttempts, 'attempts');
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'Error',
                         message: 'Failed to open participant list in openParticipantList'
                     });
@@ -522,7 +522,7 @@ class StyleManager {
                 const wasLastAttempt = i === numAttempts - 1;
                 if (wasLastAttempt) {
                     console.log('Failed to find chat input after', numAttempts, 'attempts');
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'Error',
                         message: 'Failed to find chat input in openChatPanel'
                     });
@@ -533,7 +533,7 @@ class StyleManager {
             // Click the chat button again to close/minimize the panel
             chatButton.click();
 
-            window.ws.sendJson({
+            wsProvider()?.sendJson({
                 type: 'ChatStatusChange',
                 change: 'ready_to_send'
             });
@@ -1638,7 +1638,7 @@ const handleVideoTrack = async (event) => {
                         */
                         // Get current time in microseconds (multiply milliseconds by 1000)
                         const currentTimeMicros = BigInt(Math.floor(currentTime * 1000));
-                        window.ws.sendVideo(currentTimeMicros, firstStreamId, frame.displayWidth, frame.displayHeight, data);
+                        wsProvider()?.sendVideo(currentTimeMicros, firstStreamId, frame.displayWidth, frame.displayHeight, data);
 
                         rawFrame.close();
                         lastFrameTime = currentTime;
@@ -1757,7 +1757,7 @@ const handleAudioTrack = async (event) => {
                 if (!lastAudioFormat || 
                     JSON.stringify(currentFormat) !== JSON.stringify(lastAudioFormat)) {
                     lastAudioFormat = currentFormat;
-                    window.ws.sendJson({
+                    wsProvider()?.sendJson({
                         type: 'AudioFormatUpdate',
                         format: currentFormat
                     });
@@ -1788,7 +1788,7 @@ const handleAudioTrack = async (event) => {
                 if (userForContributingSourceWithLoudestAudio) {
                     const firstUserId = userForContributingSourceWithLoudestAudio?.deviceId;
                     if (firstUserId) {
-                        window.ws.sendPerParticipantAudio(firstUserId, audioData);
+                        wsProvider()?.sendPerParticipantAudio(firstUserId, audioData);
                     }
                 }
                 
@@ -1999,7 +1999,7 @@ async function turnOnCamera() {
         if (cameraButton) {
             break;
         }
-        window.ws.sendJson({
+        wsProvider()?.sendJson({
             type: 'Error',
             message: 'Camera button not found in turnOnCamera, but will try again'
         });
@@ -2011,7 +2011,7 @@ async function turnOnCamera() {
         cameraButton.click();
     } else {
         console.log("Camera button not found");
-        window.ws.sendJson({
+        wsProvider()?.sendJson({
             type: 'Error',
             message: 'Camera button not found in turnOnCamera'
         });
