@@ -11,6 +11,7 @@
     "dev:server": "dotenv -e .env -- tsx watch server/index.ts",
     "start:server": "dotenv -e .env -- node dist/server/index.js",
     "test:pho-whisper": "tsx test-pho-whisper.ts",
+    "test:deepgram": "tsx test-deepgram.ts",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build"
   },
@@ -18,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@deepgram/sdk": "^4.11.2",
     "@types/form-data": "^2.5.2",
     "@types/node-fetch": "^2.6.13",
     "@types/uuid": "^10.0.0",

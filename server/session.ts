@@ -18,6 +18,7 @@ import {
 } from './types';
 import { WavWriter, convertFloat32ToInt16 } from './audio';
 import { PhoWhisperService } from './pho-whisper';
+import { DeepgramService } from './deepgram-service';
 
 const TELEMETRY_FILE = 'telemetry.ndjson';
 const SUMMARY_FILE = 'session-summary.json';
@@ -563,11 +564,12 @@ export class Session {
 
   private async processPhoWhisper(archivePath: string): Promise<void> {
     try {
-      const phoWhisperService = new PhoWhisperService(this.sessionLogger);
-      await phoWhisperService.processMeetingFolder(archivePath);
-      this.sessionLogger.info({ archivePath }, 'PhoWhisper processing completed successfully');
+      // Use DeepgramService instead of PhoWhisperService for Vietnamese transcription
+      const deepgramService = new DeepgramService();
+      await deepgramService.processMeetingFolder(archivePath);
+      this.sessionLogger.info({ archivePath }, 'Deepgram processing completed successfully');
     } catch (error) {
-      this.sessionLogger.error({ error, archivePath }, 'PhoWhisper processing failed');
+      this.sessionLogger.error({ error, archivePath }, 'Deepgram processing failed');
       throw error;
     }
   }

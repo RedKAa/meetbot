@@ -10,6 +10,7 @@ export interface RecorderConfig {
   enablePerParticipantAudio: boolean;
   enableVideoCapture: boolean;
   phoWhisperWebhookUrl?: string;
+  deepgramApiKey?: string;
 }
 
 const DEFAULT_PORT = 8765;
@@ -34,6 +35,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RecorderConfig
     enableVideoCapture: normaliseBoolean(env.CAPTURE_VIDEO_FRAMES, false),
     phoWhisperWebhookUrl: typeof env.PHO_WHISPER_WEBHOOK_URL === 'string' && env.PHO_WHISPER_WEBHOOK_URL.trim().length > 0
       ? env.PHO_WHISPER_WEBHOOK_URL.trim()
+      : undefined,
+    deepgramApiKey: typeof env.DEEPGRAM_API_KEY === 'string' && env.DEEPGRAM_API_KEY.trim().length > 0
+      ? env.DEEPGRAM_API_KEY.trim()
       : undefined
   };
 }
@@ -96,3 +100,4 @@ export function getConfig(): RecorderConfig {
   }
   return globalConfig;
 }
+

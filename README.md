@@ -82,11 +82,28 @@ CAPTURE_VIDEO_FRAMES=false
 
 # Optional: PhoWhisper integration
 PHO_WHISPER_WEBHOOK_URL=http://your-pho-whisper-server.com
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
 ```
 
 ### PhoWhisper Integration
 
-MeetBot integrates with PhoWhisper for automatic transcription and summarization:
+MeetBot integrates with PhoWhisper for automatic Vietnamese transcription and summarization. When a meeting ends, the system automatically:
+
+1. Processes all recorded audio files
+2. Generates transcripts for each participant
+3. Creates meeting summaries (overall and per-participant)
+4. Stores results in `transcripts/` and `summaries/` folders within each archived meeting
+
+### Deepgram Integration
+
+MeetBot also supports Deepgram API for Vietnamese transcription as an alternative to PhoWhisper:
+
+1. **High-quality Vietnamese transcription** using Deepgram's Nova-2 model
+2. **Automatic summarization** with extractive approach for Vietnamese content
+3. **Per-participant analysis** with speaker diarization
+4. **Fallback summarization** when advanced AI models are not available
+
+To use Deepgram instead of PhoWhisper, set the `DEEPGRAM_API_KEY` environment variable. The system will automatically use DeepgramService for transcription and summarization.
 
 - **PHO_WHISPER_WEBHOOK_URL**: Base URL for your PhoWhisper service
 - The service expects `/transcribe` and `/summarize` endpoints
@@ -143,6 +160,20 @@ Script này sẽ:
 - Xử lý chúng qua PhoWhisper
 - Tạo transcripts và summaries
 - Verify output files được tạo đúng
+
+### Testing Deepgram Integration
+
+Test the Deepgram integration:
+
+```bash
+npm run test:deepgram
+```
+
+This will:
+1. Check for Deepgram API key configuration
+2. Look for test meeting recordings in `recordings/test-meeting-deepgram/`
+3. Process audio files through Deepgram API
+4. Verify Vietnamese transcription and summary generation
 
 ### 3. Monitoring
 
@@ -278,3 +309,24 @@ Nếu gặp issues:
 2. Review `recordings/live/` cho active sessions
 3. Check `telemetry.ndjson` files cho debugging
 4. Create issue với logs và reproduction steps
+### React UI
+
+A React-based UI is also available at `/app`.
+
+- Start servers: `npm run dev:server`
+- Open: `http://localhost:3000/app`
+- Features match the vanilla UI: start recordings, list sessions, review media/transcripts/summaries.
+
+### React Web UI (standalone)
+
+The web interface now lives in `web/` as a Vite + React project.
+
+1. Install dependencies once: `cd web && npm install`
+2. Development server (default http://localhost:5173):
+   ```bash
+   npm run dev
+   ```
+   Set `VITE_API_BASE` if the API runs somewhere other than `http://localhost:3000`.
+3. Build static assets: `npm run build` (outputs to `web/dist/`).
+
+The API continues to serve only `/api/*` endpoints; you can deploy the frontend separately (e.g., CDN or reverse proxy).
