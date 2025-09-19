@@ -563,7 +563,7 @@ export class Session {
 
   private async processPhoWhisper(archivePath: string): Promise<void> {
     try {
-      const phoWhisperService = new PhoWhisperService();
+      const phoWhisperService = new PhoWhisperService(this.sessionLogger);
       await phoWhisperService.processMeetingFolder(archivePath);
       this.sessionLogger.info({ archivePath }, 'PhoWhisper processing completed successfully');
     } catch (error) {

@@ -102,3 +102,46 @@ recordings/
 
 
 
+## React Web UI Plan
+
+Goal: Provide a React-based SPA to start recordings, list sessions, and review media, transcripts, and summaries. Served by the existing HTTP API and mounted at `/app`.
+
+Assumptions
+- Reuse current API endpoints (`/api/*`) from `server/http.ts`.
+- Serve static React UI from `docs/ui-react` with a simple CDN-based React build (no local bundler required), good for brownfield.
+- Keep vanilla UI at `/` for fallback; React app available at `/app`.
+
+Implementation checklist (superseded by standalone React app)
+- [x] Add React SPA scaffold in `docs/ui-react`
+- [x] Implement Start Recording form (POST `/api/recordings`)
+- [x] Implement Sessions lists: GET `/api/sessions/live` and `/api/sessions/completed` + polling.
+- [x] Implement Session Details: GET `/api/sessions/:id`, audio players, transcripts and summaries viewer.
+- [x] Update HTTP server to serve React UI at `/app` (SPA fallback to index.html).
+- [x] Update README with React UI usage and route (`/app`).
+
+Notes
+- This approach avoids adding a bundler; can migrate to Vite later if desired.
+- All API calls are same-origin to avoid CORS headaches; CORS remains permissive.
+
+
+
+## React App Separation Plan
+
+Goal: Move the Web UI into a standalone React app under `web/` and stop serving UI files from the API process. The API remains on `HTTP_PORT` (default 3000); the React dev server runs on its own port (default 5173) and talks to the API via `VITE_API_BASE`.
+
+Assumptions
+- Keep current API endpoints under `/api/*` in `server/http.ts`.
+- Enable permissive CORS (already `*`) to allow the React dev server origin.
+- Root repo now contains an additional `web/` package (Vite + React + TS).
+
+Implementation checklist
+- [x] Remove static UI serving from API (server/http.ts now 404s non-API routes).
+- [x] Scaffold React app in `web/` with Vite + React + TS.
+- [x] Add `VITE_API_BASE` config (default `http://localhost:3000`) and API client using it.
+- [x] Implement Start Recording form (POST `${API_BASE}/api/recordings`).
+- [x] Implement Sessions lists (GET `${API_BASE}/api/sessions/live` and `/completed`) with polling.
+- [x] Implement Session Details (GET `${API_BASE}/api/sessions/:id`), audio players, transcripts and summaries viewer.
+- [x] Update README with separate Web UI usage.
+
+Notes
+- In production, you can build the React app (`npm run build` in `web/`) and serve the static files via any CDN or reverse proxy. The API does not serve UI assets.

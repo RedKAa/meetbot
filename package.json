@@ -10,7 +10,9 @@
     "build": "tsc",
     "dev:server": "dotenv -e .env -- tsx watch server/index.ts",
     "start:server": "dotenv -e .env -- node dist/server/index.js",
-    "test:pho-whisper": "tsx test-pho-whisper.ts"
+    "test:pho-whisper": "tsx test-pho-whisper.ts",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build"
   },
   "keywords": [],
   "author": "",

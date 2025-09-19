@@ -33,13 +33,13 @@ export class PhoWhisperService {
   constructor(logger: Logger) {
     this.logger = logger;
     const appConfig = getConfig();
-    
-    if (!appConfig.PHO_WHISPER_WEBHOOK_URL) {
-      throw new Error('PHO_WHISPER_WEBHOOK_URL is not configured');
+    const webhook = appConfig.phoWhisperWebhookUrl;
+    if (!webhook) {
+      throw new Error('phoWhisperWebhookUrl/PHO_WHISPER_WEBHOOK_URL is not configured');
     }
 
     this.config = {
-      baseUrl: appConfig.PHO_WHISPER_WEBHOOK_URL,
+      baseUrl: webhook,
       timeout: 300000, // 5 minutes
       retries: 3,
       retryDelay: 5000 // 5 seconds
@@ -64,12 +64,11 @@ export class PhoWhisperService {
         const formData = new FormData();
         formData.append('audio', fs.createReadStream(audioFilePath));
 
-        const response = await fetch(`${this.config.baseUrl}/transcribe`, {
+        const response = await fetchWithTimeout(`${this.config.baseUrl}/transcribe`, {
           method: 'POST',
-          body: formData,
-          timeout: this.config.timeout,
-          headers: formData.getHeaders()
-        });
+          body: formData as any,
+          headers: (formData as any).getHeaders?.() ?? {}
+        }, this.config.timeout);
 
         if (!response.ok) {
           const error = new Error(`HTTP ${response.status}: ${response.statusText}`) as any;
@@ -94,7 +93,7 @@ export class PhoWhisperService {
       const duration = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      this.logger.error(`Transcription failed after ${duration}ms:`, errorMessage);
+      this.logger.error({ error: errorMessage }, `Transcription failed after ${duration}ms:`);
       
       return {
         success: false,
@@ -123,14 +122,13 @@ export class PhoWhisperService {
           context: context || 'meeting transcript'
         };
 
-        const response = await fetch(`${this.config.baseUrl}/summarize`, {
+        const response = await fetchWithTimeout(`${this.config.baseUrl}/summarize`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(payload),
-          timeout: this.config.timeout
-        });
+          body: JSON.stringify(payload)
+        }, this.config.timeout);
 
         if (!response.ok) {
           const error = new Error(`HTTP ${response.status}: ${response.statusText}`) as any;
@@ -155,7 +153,7 @@ export class PhoWhisperService {
       const duration = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      this.logger.error(`Summarization failed after ${duration}ms:`, errorMessage);
+      this.logger.error({ error: errorMessage }, `Summarization failed after ${duration}ms:`);
       
       return {
         success: false,
@@ -204,12 +202,9 @@ export class PhoWhisperService {
     }
   }
 
-
-
   private async processMixedAudio(audioPath: string, transcriptsDir: string, summariesDir: string): Promise<void> {
     this.logger.info('Processing mixed audio for transcription and summarization');
 
-    // Transcribe mixed audio
     const transcriptionResult = await this.transcribeAudio(audioPath);
     
     if (transcriptionResult.success && transcriptionResult.text) {
@@ -217,7 +212,6 @@ export class PhoWhisperService {
       await fs.promises.writeFile(transcriptPath, transcriptionResult.text, 'utf8');
       this.logger.info(`Mixed transcript saved: ${transcriptPath}`);
 
-      // Generate meeting summary
       const summaryResult = await this.summarizeText(
         transcriptionResult.text,
         'Complete meeting transcript - provide overall meeting summary'
@@ -246,7 +240,6 @@ export class PhoWhisperService {
 
       this.logger.info(`Processing participant: ${participantFolder}`);
 
-      // Look for combined audio file
       const audioFiles = await fs.promises.readdir(participantPath);
       const combinedAudioFile = audioFiles.find(file => file.startsWith('combined_') && file.endsWith('.wav'));
       
@@ -256,9 +249,8 @@ export class PhoWhisperService {
       }
 
       const audioPath = path.join(participantPath, combinedAudioFile);
-      const participantName = participantFolder.split('_')[0]; // Extract display name
+      const participantName = participantFolder.split('_')[0];
 
-      // Transcribe participant audio
       const transcriptionResult = await this.transcribeAudio(audioPath);
       
       if (transcriptionResult.success && transcriptionResult.text) {
@@ -266,7 +258,6 @@ export class PhoWhisperService {
         await fs.promises.writeFile(transcriptPath, transcriptionResult.text, 'utf8');
         this.logger.info(`Participant transcript saved: ${transcriptPath}`);
 
-        // Generate participant summary
         const summaryResult = await this.summarizeText(
           transcriptionResult.text,
           `Transcript from participant ${participantName} - summarize their contributions and key points`
@@ -281,31 +272,22 @@ export class PhoWhisperService {
     }
   }
 
-  /**
-   * Find audio files in meeting directory
-   */
   private async findAudioFiles(meetingPath: string): Promise<string[]> {
     const audioFiles: string[] = [];
-    
-    // Check for mixed audio
     const mixedAudioPath = path.join(meetingPath, 'mixed_audio.wav');
     if (fs.existsSync(mixedAudioPath)) {
       audioFiles.push(mixedAudioPath);
     }
 
-    // Check for participant audio files
     const participantsDir = path.join(meetingPath, 'participants');
     if (fs.existsSync(participantsDir)) {
       const participants = await fs.promises.readdir(participantsDir);
-      
       for (const participantFolder of participants) {
         const participantPath = path.join(participantsDir, participantFolder);
         const stat = await fs.promises.stat(participantPath);
-        
         if (stat.isDirectory()) {
           const files = await fs.promises.readdir(participantPath);
           const combinedAudioFile = files.find(file => file.startsWith('combined_') && file.endsWith('.wav'));
-          
           if (combinedAudioFile) {
             audioFiles.push(path.join(participantPath, combinedAudioFile));
           }
@@ -316,24 +298,16 @@ export class PhoWhisperService {
     return audioFiles;
   }
 
-  /**
-   * Extract participant ID from filename
-   */
   private extractParticipantId(fileName: string): string | undefined {
-    // Extract participant name from folder structure or filename
     const match = fileName.match(/^(.+?)_/);
     return match ? match[1] : undefined;
   }
 
-  /**
-   * Generate summaries for transcripts
-   */
   private async generateSummaries(
     transcripts: Array<{ file: string; transcript: string; participantId?: string }>,
     summariesDir: string,
     logger: any
   ): Promise<void> {
-    // Generate overall meeting summary
     const combinedText = transcripts.map(t => `${t.file}: ${t.transcript}`).join('\n\n');
     try {
       const overallSummary = await this.summarizeText(
@@ -350,11 +324,9 @@ export class PhoWhisperService {
       logger.error({ error }, 'Failed to generate overall meeting summary');
     }
 
-    // Create participants summary directory
     const participantsSummaryDir = path.join(summariesDir, 'participants');
     await fs.promises.mkdir(participantsSummaryDir, { recursive: true });
 
-    // Generate individual participant summaries
     for (const transcript of transcripts) {
       if (transcript.participantId) {
         try {
@@ -390,7 +362,6 @@ export class PhoWhisperService {
           context 
         }, 'Request failed, retrying...');
         
-        // Check if error is retryable
         if (!this.isRetryableError(error)) {
           this.logger.error({ error: lastError.message, context }, 'Non-retryable error encountered');
           throw lastError;
@@ -412,37 +383,41 @@ export class PhoWhisperService {
   }
 
   private isRetryableError(error: any): boolean {
-    // Network errors are retryable
-    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+    if (error.code === 'ECONNRESET' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT' || error.name === 'AbortError') {
       return true;
     }
-    
-    // HTTP 5xx errors are retryable
     if (error.status >= 500 && error.status < 600) {
       return true;
     }
-    
-    // HTTP 429 (Too Many Requests) is retryable
     if (error.status === 429) {
       return true;
     }
-    
-    // HTTP 4xx errors (except 429) are not retryable
     if (error.status >= 400 && error.status < 500) {
       return false;
     }
-    
-    return true; // Default to retryable for unknown errors
+    return true;
   }
 
   private calculateBackoffDelay(attempt: number): number {
-    // Exponential backoff with jitter
     const baseDelay = this.config.retryDelay * Math.pow(2, attempt - 1);
     const jitter = Math.random() * 0.1 * baseDelay;
-    return Math.min(baseDelay + jitter, 30000); // Cap at 30 seconds
+    return Math.min(baseDelay + jitter, 30000);
   }
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
+
+async function fetchWithTimeout(resource: string, options: any, timeoutMs: number): Promise<import('node-fetch').Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs | 0));
+  try {
+    const opts = { ...(options || {}), signal: controller.signal } as any;
+    return await fetch(resource, opts);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+

@@ -4,6 +4,7 @@ import path from 'path';
 export interface RecorderConfig {
   env: 'development' | 'production' | 'test';
   port: number;
+  httpPort: number;
   recordingsRoot: string;
   enableMixedAudio: boolean;
   enablePerParticipantAudio: boolean;
@@ -12,18 +13,21 @@ export interface RecorderConfig {
 }
 
 const DEFAULT_PORT = 8765;
+const DEFAULT_HTTP_PORT = 3000;
 const DEFAULT_RECORDINGS_DIR = path.resolve(process.cwd(), 'recordings');
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RecorderConfig {
   const nodeEnv = normaliseEnv(env.NODE_ENV);
 
   const port = normalisePort(env.WS_PORT, DEFAULT_PORT);
+  const httpPort = normalisePort(env.HTTP_PORT ?? env.API_PORT, DEFAULT_HTTP_PORT);
   const recordingsRoot = normalisePath(env.RECORDINGS_ROOT, DEFAULT_RECORDINGS_DIR);
   ensureDir(recordingsRoot);
 
   return {
     env: nodeEnv,
     port,
+    httpPort,
     recordingsRoot,
     enableMixedAudio: normaliseBoolean(env.SEND_MIXED_AUDIO, true),
     enablePerParticipantAudio: normaliseBoolean(env.SEND_PER_PARTICIPANT_AUDIO, true),
@@ -92,4 +96,3 @@ export function getConfig(): RecorderConfig {
   }
   return globalConfig;
 }
-
