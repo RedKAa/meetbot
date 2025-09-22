@@ -98,7 +98,7 @@ function StartCard({ onStarted }: StartCardProps) {
             type="number"
             value={durationSec}
             onChange={(event) => setDurationSec(Number(event.target.value))}
-            min="60"
+            min="30"
             max="14400"
           />
         </div>

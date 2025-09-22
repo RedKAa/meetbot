@@ -160,18 +160,7 @@ export class DeepgramService {
         throw new Error(`Meeting folder not found: ${meetingFolderPath}`);
       }
 
-      // Create output directories
-      const transcriptsDir = path.join(meetingFolderPath, 'transcripts');
-      const summariesDir = path.join(meetingFolderPath, 'summaries');
-      
-      if (!fs.existsSync(transcriptsDir)) {
-        fs.mkdirSync(transcriptsDir, { recursive: true });
-      }
-      if (!fs.existsSync(summariesDir)) {
-        fs.mkdirSync(summariesDir, { recursive: true });
-      }
-
-      // Find audio files
+      // Find audio files recursively
       const audioFiles = this.findAudioFiles(meetingFolderPath);
       console.log(`[DeepgramService] Found ${audioFiles.length} audio files`);
 
@@ -185,8 +174,9 @@ export class DeepgramService {
           const filename = path.basename(audioFile);
           transcripts[filename] = result;
 
-          // Save individual transcript
-          const transcriptPath = path.join(transcriptsDir, `${filename}.json`);
+          // Save transcript in the same directory as the audio file
+          const audioDir = path.dirname(audioFile);
+          const transcriptPath = path.join(audioDir, `${filename}.transcript.json`);
           fs.writeFileSync(transcriptPath, JSON.stringify(result, null, 2));
 
           // Collect participant transcripts
@@ -200,7 +190,7 @@ export class DeepgramService {
       }
 
       // Generate summaries
-      const summaries = await this.generateSummaries(transcripts, participantTranscripts, summariesDir);
+      const summaries = await this.generateSummariesInPlace(transcripts, participantTranscripts, audioFiles);
 
       console.log(`[DeepgramService] Meeting processing completed`);
 
@@ -215,30 +205,102 @@ export class DeepgramService {
   }
 
   /**
+   * Generate summaries and save them alongside audio files
+   */
+  private async generateSummariesInPlace(
+    transcripts: { [filename: string]: TranscriptionResult },
+    participantTranscripts: { [participantId: string]: string },
+    audioFiles: string[]
+  ): Promise<{
+    overall: SummaryResult;
+    participants: { [participantId: string]: SummaryResult };
+  }> {
+    // Generate overall summary - use mixed_audio.wav if available, otherwise combine participant transcripts
+    let overallText = '';
+    const mixedAudioTranscript = transcripts['mixed_audio.wav'];
+    
+    if (mixedAudioTranscript) {
+      // Use mixed audio transcript as it contains the complete meeting
+      overallText = mixedAudioTranscript.text;
+      
+      // Save overall summary next to mixed_audio.wav
+      const mixedAudioFile = audioFiles.find(file => path.basename(file) === 'mixed_audio.wav');
+      if (mixedAudioFile) {
+        const overallSummary = await this.summarizeText(overallText, 'Tóm tắt cuộc họp:');
+        const summaryPath = path.join(path.dirname(mixedAudioFile), 'mixed_audio.wav.summary.json');
+        fs.writeFileSync(summaryPath, JSON.stringify(overallSummary, null, 2));
+      }
+    } else {
+      // Fallback: combine all participant transcripts
+      overallText = Object.values(participantTranscripts).join(' ');
+    }
+    
+    const overallSummary = await this.summarizeText(overallText, 'Tóm tắt cuộc họp:');
+
+    // Generate per-participant summaries and save them next to their audio files
+    const participantSummaries: { [participantId: string]: SummaryResult } = {};
+    
+    // Also generate summaries for all audio files, even if they have empty transcripts
+    for (const audioFile of audioFiles) {
+      const filename = path.basename(audioFile);
+      const participantId = this.extractParticipantId(filename);
+      
+      if (participantId && transcripts[filename]) {
+        const text = transcripts[filename].text;
+        
+        try {
+          // Generate summary even for empty or short text
+          const summary = await this.summarizeText(text, `Tóm tắt phát biểu của ${participantId}:`);
+          participantSummaries[participantId] = summary;
+          
+          // Save summary next to the audio file
+          const summaryPath = path.join(path.dirname(audioFile), `${filename}.summary.json`);
+          fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+          
+          console.log(`[DeepgramService] Generated summary for ${participantId}: ${summaryPath}`);
+        } catch (error) {
+          console.error(`[DeepgramService] Failed to generate summary for participant ${participantId}:`, error);
+        }
+      }
+    }
+
+    return {
+      overall: overallSummary,
+      participants: participantSummaries
+    };
+  }
+
+  /**
    * Find audio files in the meeting folder
    */
   private findAudioFiles(folderPath: string): string[] {
     const audioExtensions = ['.wav', '.mp3', '.m4a', '.flac', '.ogg'];
     const files: string[] = [];
 
-    try {
-      const items = fs.readdirSync(folderPath);
-      
-      for (const item of items) {
-        const itemPath = path.join(folderPath, item);
-        const stat = fs.statSync(itemPath);
+    const findFilesRecursively = (currentPath: string) => {
+      try {
+        const items = fs.readdirSync(currentPath);
         
-        if (stat.isFile()) {
-          const ext = path.extname(item).toLowerCase();
-          if (audioExtensions.includes(ext)) {
-            files.push(itemPath);
+        for (const item of items) {
+          const itemPath = path.join(currentPath, item);
+          const stat = fs.statSync(itemPath);
+          
+          if (stat.isFile()) {
+            const ext = path.extname(item).toLowerCase();
+            if (audioExtensions.includes(ext)) {
+              files.push(itemPath);
+            }
+          } else if (stat.isDirectory()) {
+            // Recursively search in subdirectories
+            findFilesRecursively(itemPath);
           }
         }
+      } catch (error) {
+        console.error(`[DeepgramService] Error reading folder ${currentPath}:`, error);
       }
-    } catch (error) {
-      console.error(`[DeepgramService] Error reading folder ${folderPath}:`, error);
-    }
+    };
 
+    findFilesRecursively(folderPath);
     return files;
   }
 
@@ -246,9 +308,19 @@ export class DeepgramService {
    * Extract participant ID from filename
    */
   private extractParticipantId(filename: string): string | null {
-    // Look for patterns like "participant_123" or "user_456"
-    const match = filename.match(/(?:participant|user)_(\w+)/i);
-    return match ? match[1] : null;
+    // Look for patterns like "participant_123", "user_456", or "combined_hoangnguyen_363_219"
+    let match = filename.match(/(?:participant|user)_(\w+)/i);
+    if (match) {
+      return match[1];
+    }
+    
+    // Also check for pattern like "combined_hoangnguyen_363_219"
+    match = filename.match(/combined_([^_]+_\d+_\d+)/i);
+    if (match) {
+      return match[1];
+    }
+    
+    return null;
   }
 
   /**
