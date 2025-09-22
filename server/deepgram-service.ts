@@ -47,15 +47,15 @@ export class DeepgramService {
       // Read the audio file
       const audioBuffer = fs.readFileSync(audioFilePath);
       
-      // Configure transcription options for Vietnamese
+      // Configure transcription options for Vietnamese using Whisper model
       const options = {
-        model: 'nova-2',
-        language: language,
+        model: 'whisper',
+        language: 'vi',
         smart_format: true,
         punctuate: true,
         diarize: true,
         utterances: true,
-        summarize: false, // We'll handle summarization separately
+        summarize: false,
       };
 
       // Transcribe the audio

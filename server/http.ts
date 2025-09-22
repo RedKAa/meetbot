@@ -6,6 +6,7 @@ import url from 'url';
 
 import { RecorderConfig } from './config';
 import type { Logger } from './logger';
+import { loginUser, registerUser, isValidEmail, isValidPassword } from './auth';
 
 enum SessionType {
   Live = 'live',
@@ -47,9 +48,11 @@ export function startApiServer(context: ApiContext): ApiServer {
 }
 
 async function handleRequest(context: ApiContext, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // Enhanced CORS configuration for web_2 integration
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -100,6 +103,15 @@ async function handleRequest(context: ApiContext, req: IncomingMessage, res: Ser
     return sendJson(res, 200, { items: data });
   }
 
+  // Authentication endpoints
+  if (pathname === '/api/auth/login' && req.method === 'POST') {
+    return handleLogin(req, res);
+  }
+
+  if (pathname === '/api/auth/register' && req.method === 'POST') {
+    return handleRegister(req, res);
+  }
+
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length >= 3 && segments[0] === 'api' && segments[1] === 'sessions') {
     const id = segments[2];
@@ -126,6 +138,7 @@ async function listLiveSessions(context: ApiContext): Promise<any[]> {
   const entries = await fs.promises.readdir(root, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    
     const fullPath = path.join(root, entry.name);
     const stats = await fs.promises.stat(fullPath);
     items.push({
@@ -146,6 +159,7 @@ async function listCompletedSessions(context: ApiContext): Promise<any[]> {
   const entries = await fs.promises.readdir(root, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    
     const fullPath = path.join(root, entry.name);
     const manifestPath = path.join(fullPath, 'archive.json');
     const summaryPath = path.join(fullPath, 'session-summary.json');
@@ -170,64 +184,129 @@ async function listCompletedSessions(context: ApiContext): Promise<any[]> {
 }
 
 async function getSessionDetails(context: ApiContext, id: string): Promise<any | null> {
-  const { recordingsRoot } = context.config;
-  const livePath = path.join(recordingsRoot, 'live', id);
-  const completedPath = path.join(recordingsRoot, 'completed', id);
-  let baseDir: string | null = null;
-  let kind: SessionType | null = null;
-  if (fs.existsSync(livePath)) { baseDir = livePath; kind = SessionType.Live; }
-  else if (fs.existsSync(completedPath)) { baseDir = completedPath; kind = SessionType.Completed; }
-  if (!baseDir || !kind) return null;
-
-  const summaryPath = path.join(baseDir, 'session-summary.json');
-  const archivePath = path.join(baseDir, 'archive.json');
-  let summary: any = null;
-  let manifest: any = null;
-  try { if (fs.existsSync(summaryPath)) summary = JSON.parse(await fs.promises.readFile(summaryPath, 'utf8')); } catch {}
-  try { if (fs.existsSync(archivePath)) manifest = JSON.parse(await fs.promises.readFile(archivePath, 'utf8')); } catch {}
-
-  const exists = (rel: string) => fs.existsSync(path.join(baseDir!, rel));
-  const files = {
-    mixedAudio: exists('mixed_audio.wav') ? 'mixed_audio.wav' : null,
-    mixedTranscript: exists(path.join('transcripts', 'mixed_audio.wav.json')) ? 'transcripts/mixed_audio.wav.json' : null,
-    meetingSummary: exists(path.join('summaries', 'overall_summary.json')) ? 'summaries/overall_summary.json' : 
-                   exists('meeting-summary.json') ? 'meeting-summary.json' : null
-  } as const;
-
-  const participants: Array<{ label: string; audio?: string | null; transcript?: string | null; summary?: string | null }> = [];
-  const participantsDir = path.join(baseDir, 'participants');
-  if (fs.existsSync(participantsDir)) {
-    const labels = await fs.promises.readdir(participantsDir);
-    for (const label of labels) {
-      const participantDir = path.join(participantsDir, label);
-      let stats: fs.Stats;
-      try {
-        stats = await fs.promises.stat(participantDir);
-      } catch {
-        continue;
+  // Try live sessions first
+  let sessionPath = path.join(context.config.recordingsRoot, 'live', `session_${id}`);
+  let summaryPath = path.join(sessionPath, 'session-summary.json');
+  
+  try {
+    const summaryData = await fs.promises.readFile(summaryPath, 'utf-8');
+    const sessionDetails = JSON.parse(summaryData);
+    return await enrichSessionDetails(sessionDetails, sessionPath);
+  } catch (error) {
+    // Try completed sessions
+    const completedPath = path.join(context.config.recordingsRoot, 'completed');
+    const entries = await fs.promises.readdir(completedPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.includes(id.slice(0, 8))) {
+        sessionPath = path.join(completedPath, entry.name);
+        summaryPath = path.join(sessionPath, 'session-summary.json');
+        try {
+          const summaryData = await fs.promises.readFile(summaryPath, 'utf-8');
+          const sessionDetails = JSON.parse(summaryData);
+          return await enrichSessionDetails(sessionDetails, sessionPath);
+        } catch (error) {
+          // Continue searching
+        }
       }
-      if (!stats.isDirectory()) continue;
-      const audioFile = findFirst(participantDir, name => /^combined_.*\.wav$/i.test(name));
-      const nameStem = label.split('_')[0];
-      const transcriptFile = path.join('transcripts', 'participants', `${nameStem}_transcript.txt`).replace(/\\/g, '/');
-      const summaryFile = path.join('summaries', 'participants', `${nameStem}_summary.txt`).replace(/\\/g, '/');
-      participants.push({
-        label,
-        audio: audioFile ? path.posix.join('participants', label.replace(/\\/g, '/'), audioFile).replace(/\\/g, '/') : null,
-        transcript: fs.existsSync(path.join(baseDir, transcriptFile)) ? transcriptFile : null,
-        summary: fs.existsSync(path.join(baseDir, summaryFile)) ? summaryFile : null
-      });
     }
   }
 
-  return {
-    id,
-    kind,
-    manifest,
-    summary,
-    files,
-    participants
-  };
+  return null;
+}
+
+async function enrichSessionDetails(sessionDetails: any, sessionPath: string): Promise<any> {
+  try {
+    // Add overall meeting summary and transcript
+    const mixedAudioSummaryPath = path.join(sessionPath, 'mixed_audio.wav.summary.json');
+    const mixedAudioTranscriptPath = path.join(sessionPath, 'mixed_audio.wav.transcript.json');
+    
+    try {
+      const summaryData = await fs.promises.readFile(mixedAudioSummaryPath, 'utf-8');
+      sessionDetails.overallSummary = JSON.parse(summaryData);
+    } catch (error) {
+      sessionDetails.overallSummary = null;
+    }
+    
+    try {
+      const transcriptData = await fs.promises.readFile(mixedAudioTranscriptPath, 'utf-8');
+      sessionDetails.overallTranscript = JSON.parse(transcriptData);
+    } catch (error) {
+      sessionDetails.overallTranscript = null;
+    }
+
+    // Add participant details
+    const participantsPath = path.join(sessionPath, 'participants');
+    try {
+      const participantEntries = await fs.promises.readdir(participantsPath, { withFileTypes: true });
+      const participantDetails = [];
+
+      for (const entry of participantEntries) {
+        if (entry.isDirectory()) {
+          const participantPath = path.join(participantsPath, entry.name);
+          const participantDetail: any = {
+            id: entry.name,
+            audioFiles: [],
+            transcripts: [],
+            summaries: []
+          };
+
+          // Get all files for this participant
+          try {
+            const participantFiles = await fs.promises.readdir(participantPath);
+            
+            for (const file of participantFiles) {
+              const filePath = path.join(participantPath, file);
+              
+              if (file.endsWith('.wav')) {
+                participantDetail.audioFiles.push({
+                  filename: file,
+                  path: `participants/${entry.name}/${file}`
+                });
+              } else if (file.endsWith('.transcript.json')) {
+                try {
+                  const transcriptData = await fs.promises.readFile(filePath, 'utf-8');
+                  participantDetail.transcripts.push({
+                    filename: file,
+                    data: JSON.parse(transcriptData)
+                  });
+                } catch (error) {
+                  // Skip invalid transcript files
+                }
+              } else if (file.endsWith('.summary.json')) {
+                try {
+                  const summaryData = await fs.promises.readFile(filePath, 'utf-8');
+                  participantDetail.summaries.push({
+                    filename: file,
+                    data: JSON.parse(summaryData)
+                  });
+                } catch (error) {
+                  // Skip invalid summary files
+                }
+              }
+            }
+          } catch (error) {
+            // Skip participants with unreadable directories
+          }
+
+          participantDetails.push(participantDetail);
+        }
+      }
+
+      sessionDetails.participantDetails = participantDetails;
+    } catch (error) {
+      sessionDetails.participantDetails = [];
+    }
+
+    // Add audio files information
+    sessionDetails.audioFiles = {
+      mixedAudio: 'mixed_audio.wav'
+    };
+
+    return sessionDetails;
+  } catch (error) {
+    return sessionDetails;
+  }
 }
 
 function findFirst(dir: string, predicate: (name: string) => boolean): string | null {
@@ -243,28 +322,43 @@ function findFirst(dir: string, predicate: (name: string) => boolean): string | 
 }
 
 async function serveSessionFile(context: ApiContext, id: string, relativePath: string, res: ServerResponse): Promise<void> {
-  const { recordingsRoot } = context.config;
-  const normalised = relativePath.replace(/\\+/g, '/').replace(/\.\.+/g, '.');
-  const livePath = path.join(recordingsRoot, 'live', id);
-  const completedPath = path.join(recordingsRoot, 'completed', id);
-  const baseDir = fs.existsSync(livePath) ? livePath : fs.existsSync(completedPath) ? completedPath : null;
-  if (!baseDir) {
+  // Try live sessions first
+  let sessionPath = path.join(context.config.recordingsRoot, 'live', `session_${id}`);
+  let filePath = path.join(sessionPath, relativePath);
+  
+  if (!fs.existsSync(filePath)) {
+    // Try completed sessions
+    const completedPath = path.join(context.config.recordingsRoot, 'completed');
+    const entries = await fs.promises.readdir(completedPath, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.includes(id.slice(0, 8))) {
+        sessionPath = path.join(completedPath, entry.name);
+        filePath = path.join(sessionPath, relativePath);
+        if (fs.existsSync(filePath)) break;
+      }
+    }
+  }
+  
+  if (!fs.existsSync(filePath)) {
     sendJson(res, 404, { error: 'not_found' });
     return;
   }
-
-  const resolvedBase = path.resolve(baseDir);
-  const resolvedTarget = path.resolve(baseDir, normalised);
+  
+  // Security check for path traversal
+  const resolvedBase = path.resolve(sessionPath);
+  const resolvedTarget = path.resolve(filePath);
   if (!resolvedTarget.startsWith(resolvedBase)) {
     sendJson(res, 400, { error: 'bad_path' });
     return;
   }
-
-  if (!fs.existsSync(resolvedTarget) || !fs.statSync(resolvedTarget).isFile()) {
+  
+  if (!fs.statSync(resolvedTarget).isFile()) {
     sendJson(res, 404, { error: 'not_found' });
     return;
   }
-
+  
+  // Serve the file
   res.statusCode = 200;
   res.setHeader('Content-Type', guessContentType(resolvedTarget));
   fs.createReadStream(resolvedTarget).pipe(res);
@@ -306,5 +400,63 @@ function sendJson(res: ServerResponse, status: number, payload: any): void {
 }
 
 function relPath(context: ApiContext, fullPath: string): string {
-  return path.relative(context.config.recordingsRoot, fullPath).replace(/\\\\/g, '/');
+  return path.relative(context.config.recordingsRoot, fullPath);
+}
+
+// Authentication handlers
+async function handleLogin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const body = await readJsonBody(req);
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return sendJson(res, 400, { success: false, error: 'Email and password are required' });
+    }
+
+    if (!isValidEmail(email)) {
+      return sendJson(res, 400, { success: false, error: 'Invalid email format' });
+    }
+
+    const result = await loginUser(email, password);
+
+    if (result.success) {
+      return sendJson(res, 200, {
+        success: true,
+        user: result.user
+      });
+    } else {
+      return sendJson(res, 401, { success: false, error: result.error });
+    }
+  } catch (error) {
+    return sendJson(res, 500, { success: false, error: 'Internal server error' });
+  }
+}
+
+async function handleRegister(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const body = await readJsonBody(req);
+    const { email, password } = body;
+
+    if (!email || !password) {
+      return sendJson(res, 400, { success: false, error: 'Email and password are required' });
+    }
+
+    if (!isValidEmail(email)) {
+      return sendJson(res, 400, { success: false, error: 'Invalid email format' });
+    }
+
+    if (!isValidPassword(password)) {
+      return sendJson(res, 400, { success: false, error: 'Password must be at least 6 characters long' });
+    }
+
+    const result = await registerUser(email, password);
+
+    if (result.success) {
+      return sendJson(res, 201, { success: true });
+    } else {
+      return sendJson(res, 400, { success: false, error: result.error });
+    }
+  } catch (error) {
+    return sendJson(res, 500, { success: false, error: 'Internal server error' });
+  }
 }

@@ -88,7 +88,10 @@ export class Session {
     const { config, logger, socket, remoteAddress, userAgent } = deps;
 
     this.sessionLogger = logger.child({ sessionId: this.id });
-    this.baseDir = path.join(config.recordingsRoot, 'live', `session_${this.id}`);
+    
+    // Create session folder
+    const sessionFolder = `session_${this.id}`;
+    this.baseDir = path.join(config.recordingsRoot, 'live', sessionFolder);
     ensureDir(this.baseDir);
 
     this.telemetryPath = path.join(this.baseDir, TELEMETRY_FILE);
