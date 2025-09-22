@@ -90,7 +90,7 @@ export default function Navbar() {
             {/* User Info */}
             <div className="flex items-center space-x-3">
               <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-white">{user.name}</p>
+                <p className="text-sm font-medium text-white">{user.email.split('@')[0]}</p>
                 <p className="text-xs text-white/60">{user.email}</p>
               </div>
               

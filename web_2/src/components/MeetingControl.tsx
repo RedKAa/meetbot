@@ -11,11 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { 
   Play, 
-  Square, 
   Clock, 
   Users, 
-  Calendar, 
-  Download, 
   FileText, 
   BarChart3,
   Bot,
@@ -270,16 +267,6 @@ function SessionsList({
   selectedId: string | null;
   onRefresh: () => void;
 }) {
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString('vi-VN', {
@@ -485,47 +472,6 @@ function SessionsList({
   );
 }
 
-function TextFile({ sessionId, file, label }: { sessionId: string; file: string; label: string }) {
-  const [content, setContent] = useState<string>("Đang tải...");
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/files/${file}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((text) => {
-        try {
-          const parsed = JSON.parse(text);
-          if (parsed.text) {
-            setContent(parsed.text || "(trống)");
-          } else if (parsed.summary) {
-            setContent(parsed.summary || "(trống)");
-          } else {
-            setContent(JSON.stringify(parsed, null, 2));
-          }
-        } catch {
-          setContent(text || "(trống)");
-        }
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        setContent(`Không thể tải: ${err.message}`);
-      });
-    return () => controller.abort();
-  }, [sessionId, file]);
-
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm font-medium text-white flex items-center gap-2">
-        <FileText className="w-4 h-4 text-blue-400" />
-        {label}
-      </Label>
-      <div className="bg-black/20 border border-white/10 p-3 rounded-md max-h-60 overflow-auto backdrop-blur-sm">
-        <pre className="text-sm whitespace-pre-wrap text-white/90">{content}</pre>
-      </div>
-    </div>
-  );
-}
-
 function SessionDetails({ sessionId }: { sessionId: string | null }) {
   const [details, setDetails] = useState<SessionDetailsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -553,7 +499,7 @@ function SessionDetails({ sessionId }: { sessionId: string | null }) {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await sessionApi.getSessionDetails(sessionId);
+        const data: SessionDetailsResponse = await sessionApi.getSessionDetails(sessionId);
         if (!cancelled) {
           setDetails(data);
         }
@@ -575,13 +521,13 @@ function SessionDetails({ sessionId }: { sessionId: string | null }) {
   }, [sessionId]);
 
   useEffect(() => {
-    if (!sessionId || !details || details.metadata?.archivePath) return;
+    if (!sessionId || !details?.metadata?.archivePath) return;
     
     let cancelled = false;
     const interval = setInterval(async () => {
       if (cancelled) return;
       try {
-        const data = await sessionApi.getSessionDetails(sessionId);
+        const data: SessionDetailsResponse = await sessionApi.getSessionDetails(sessionId);
         if (!cancelled) {
           setDetails(data);
         }
@@ -593,7 +539,7 @@ function SessionDetails({ sessionId }: { sessionId: string | null }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [sessionId, details?.metadata?.archivePath]);
+  }, [sessionId, details]);
 
   if (!sessionId) {
     return (
@@ -882,8 +828,14 @@ export function MeetingControl() {
   const refresh = useCallback(async () => {
     try {
       const [liveRes, completedRes] = await Promise.all([
-        sessionApi.getLiveSessions().catch(() => ({ items: [] })),
-        sessionApi.getCompletedSessions().catch(() => ({ items: [] }))
+        sessionApi.getLiveSessions().catch((error) => {
+          console.error("Failed to load live sessions", error);
+          return ({ items: [] });
+        }),
+        sessionApi.getCompletedSessions().catch((error) => {
+          console.error("Failed to load completed sessions", error);
+          return ({ items: [] });
+        })
       ]);
       setLive(liveRes.items ?? []);
       setCompleted(completedRes.items ?? []);

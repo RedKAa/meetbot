@@ -64,6 +64,7 @@ export async function registerUser(email: string, password: string): Promise<{ s
 
     return { success: true };
   } catch (error) {
+    console.error("Registration error:", error);
     return { success: false, error: 'Registration failed' };
   }
 }
@@ -86,6 +87,7 @@ export async function loginUser(email: string, password: string): Promise<{ succ
     const { password: _, ...userWithoutPassword } = user;
     return { success: true, user: userWithoutPassword };
   } catch (error) {
+    console.error("Login error:", error);
     return { success: false, error: 'Login failed' };
   }
 }

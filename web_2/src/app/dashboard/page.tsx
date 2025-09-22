@@ -52,7 +52,7 @@ function StatCard({ title, value, description, icon: Icon, color = "default" }: 
   title: string;
   value: string | number;
   description: string;
-  icon: any;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   color?: "default" | "blue" | "green" | "orange";
 }) {
   const colorClasses = {
@@ -94,9 +94,9 @@ export default function DashboardPage() {
           sessionApi.getCompletedSessions().catch(() => ({ items: [] }))
         ]);
 
-        const liveSessions = liveRes.items ?? [];
-        const completedSessions = completedRes.items ?? [];
-        const allSessions = [...liveSessions, ...completedSessions];
+        const liveSessions = (liveRes.items ?? []) as SessionListItem[];
+        const completedSessions = (completedRes.items ?? []) as SessionListItem[];
+        const allSessions = [...liveSessions, ...completedSessions] as SessionListItem[];
 
         // Calculate stats
         const totalMeetings = allSessions.length;
@@ -115,7 +115,7 @@ export default function DashboardPage() {
           const dayName = date.toLocaleDateString('vi-VN', { weekday: 'short' });
           
           // Count meetings for this day
-          const dayMeetings = allSessions.filter(session => {
+          const dayMeetings = allSessions.filter((session: SessionListItem) => {
             if (!session.startedAt) return false;
             const sessionDate = new Date(session.startedAt);
             return sessionDate.toDateString() === date.toDateString();
@@ -135,7 +135,7 @@ export default function DashboardPage() {
           date.setMonth(date.getMonth() - i);
           const monthName = date.toLocaleDateString('vi-VN', { month: 'short' });
           
-          const monthMeetings = allSessions.filter(session => {
+          const monthMeetings = allSessions.filter((session: SessionListItem) => {
             if (!session.startedAt) return false;
             const sessionDate = new Date(session.startedAt);
             return sessionDate.getMonth() === date.getMonth() && 

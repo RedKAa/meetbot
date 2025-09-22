@@ -9,11 +9,9 @@ import {
   Video, 
   Brain, 
   Zap, 
-  Shield, 
   Users, 
   ArrowRight,
   Play,
-  Mic,
   FileText,
   BarChart3
 } from "lucide-react";

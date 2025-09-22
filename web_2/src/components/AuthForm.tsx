@@ -41,6 +41,7 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
         }
       }
     } catch (error) {
+      console.error("Auth error:", error);
       toast.error('Có lỗi xảy ra');
     } finally {
       setLoading(false);
