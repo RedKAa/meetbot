@@ -20,7 +20,7 @@ export interface AudioFormatUpdateEvent {
 
 export interface SessionStartedEvent {
   type: 'SessionStarted';
-  meetingUrl: string;
+  meetingUrl?: string;
   botName?: string;
   startedAt?: string;
 }
@@ -66,6 +66,12 @@ export interface SessionMetadataSnapshot {
   audioFiles?: AudioFilesSummary;
   archivePath?: string;
   manifestPath?: string;
+  participants?: Array<{
+    deviceId: string;
+    displayName?: string;
+    fullName?: string;
+    isCurrentUser?: boolean;
+  }>;
 }
 
 export interface SessionSummary {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:3000";
+const API_BASE = "http://localhost:3000";
 
 async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
@@ -54,8 +54,7 @@ interface StartCardProps {
 
 function StartCard({ onStarted }: StartCardProps) {
   const [meetingUrl, setMeetingUrl] = useState("");
-  const [botName, setBotName] = useState("HopFast");
-  const [durationSec, setDurationSec] = useState<string>("");
+  const [durationSec, setDurationSec] = useState(30);
   const [status, setStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
@@ -66,11 +65,8 @@ function StartCard({ onStarted }: StartCardProps) {
     try {
       const payload: Record<string, unknown> = {
         meetingUrl: meetingUrl.trim(),
-        botName: botName.trim()
+        durationSec
       };
-      if (durationSec.trim().length) {
-        payload.durationSec = Number(durationSec);
-      }
       const response = await apiPost<{ pid?: number; status?: string }>("/api/recordings", payload);
       setStatus(response.pid ? `Started PID ${response.pid}` : "Recording request sent");
       if (onStarted) onStarted();
@@ -96,26 +92,19 @@ function StartCard({ onStarted }: StartCardProps) {
           />
         </div>
         <div style={{ marginBottom: 12 }}>
-          <label className="small" htmlFor="botName">Bot Name</label>
+          <label className="small" htmlFor="durationSec">Duration (seconds)</label>
           <input
-            id="botName"
-            value={botName}
-            onChange={(event) => setBotName(event.target.value)}
-          />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label className="small" htmlFor="duration">Duration (sec, optional)</label>
-          <input
-            id="duration"
-            value={durationSec}
-            onChange={(event) => setDurationSec(event.target.value)}
+            id="durationSec"
             type="number"
-            min={0}
+            value={durationSec}
+            onChange={(event) => setDurationSec(Number(event.target.value))}
+            min="60"
+            max="14400"
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button type="submit" className="primary" disabled={busy}>
-            {busy ? "Starting..." : "Start"}
+            {busy ? "Starting..." : "Start Recording"}
           </button>
           {status && <span style={{ fontSize: 12, color: status.startsWith("Started") ? "#198754" : "#dc3545" }}>{status}</span>}
         </div>
@@ -191,7 +180,25 @@ function TextFile({ sessionId, file, label }: TextFileProps) {
     const controller = new AbortController();
     fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/files/${file}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((text) => setContent(text || "(empty)"))
+      .then((text) => {
+        // Try to parse as JSON first (for transcription and summary files)
+        try {
+          const parsed = JSON.parse(text);
+          if (parsed.text) {
+            // Transcription file format
+            setContent(parsed.text || "(empty)");
+          } else if (parsed.summary) {
+            // Summary file format
+            setContent(parsed.summary || "(empty)");
+          } else {
+            // Unknown JSON format, show as is
+            setContent(JSON.stringify(parsed, null, 2));
+          }
+        } catch {
+          // Not JSON, show as plain text
+          setContent(text || "(empty)");
+        }
+      })
       .catch((err) => {
         if (err.name === "AbortError") return;
         setContent(`Failed to load: ${err.message}`);
@@ -202,7 +209,7 @@ function TextFile({ sessionId, file, label }: TextFileProps) {
   return (
     <div>
       <label className="small">{label}</label>
-      <pre>{content}</pre>
+      <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{content}</pre>
     </div>
   );
 }
@@ -286,62 +293,86 @@ function SessionDetails({ sessionId }: SessionDetailsProps) {
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div style={{ fontSize: 12, color: "#6c757d" }}>Session: {details.id} ({details.kind})</div>
-      <h3>Media</h3>
-      {details.files?.mixedAudio ? (
-        <div>
-          <label className="small">Mixed Audio</label>
-          <audio controls src={`${API_BASE}/api/sessions/${encodeURIComponent(details.id)}/files/${details.files.mixedAudio}`} />
+      
+      {/* Meeting Overview Section */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ marginBottom: 12 }}>Meeting Overview</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* Mixed Audio */}
+          <div>
+            <h4 style={{ fontSize: 14, marginBottom: 8 }}>Mixed Audio</h4>
+            {details.files?.mixedAudio ? (
+              <audio controls src={`${API_BASE}/api/sessions/${encodeURIComponent(details.id)}/files/${details.files.mixedAudio}`} style={{ width: "100%" }} />
+            ) : (
+              <div style={{ fontSize: 12, color: "#6c757d" }}>No mixed audio available</div>
+            )}
+          </div>
+          
+          {/* Meeting Summary */}
+          <div>
+            <h4 style={{ fontSize: 14, marginBottom: 8 }}>Meeting Summary</h4>
+            {details.files?.meetingSummary ? (
+              <TextFile sessionId={details.id} file={details.files.meetingSummary} label="Meeting Summary" />
+            ) : (
+              <div style={{ fontSize: 12, color: "#6c757d" }}>No meeting summary yet</div>
+            )}
+          </div>
         </div>
-      ) : (
-        <div style={{ fontSize: 12, color: "#6c757d" }}>No mixed audio available</div>
-      )}
+        
+        {/* Meeting Transcript */}
+        <div style={{ marginTop: 16 }}>
+          <h4 style={{ fontSize: 14, marginBottom: 8 }}>Meeting Transcript</h4>
+          {details.files?.mixedTranscript ? (
+            <TextFile sessionId={details.id} file={details.files.mixedTranscript} label="Meeting Transcript" />
+          ) : (
+            <div style={{ fontSize: 12, color: "#6c757d" }}>No meeting transcript yet</div>
+          )}
+        </div>
+      </div>
 
+      {/* Participants Section */}
       {details.participants && details.participants.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginTop: 12 }}>
-          {details.participants.map((participant) => (
-            participant.audio ? (
-              <div key={participant.label}>
-                <label className="small">{participant.label}</label>
-                <audio controls src={`${API_BASE}/api/sessions/${encodeURIComponent(details.id)}/files/${participant.audio}`} />
+        <div>
+          <h3 style={{ marginBottom: 12 }}>Participants ({details.participants.length})</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {details.participants.map((participant) => (
+              <div key={participant.label} style={{ border: "1px solid #e0e0e0", borderRadius: 8, padding: 12 }}>
+                <h4 style={{ fontSize: 14, marginBottom: 12, color: "#333" }}>{participant.label}</h4>
+                
+                {/* Participant Audio */}
+                <div style={{ marginBottom: 12 }}>
+                  <label className="small" style={{ display: "block", marginBottom: 4 }}>Audio</label>
+                  {participant.audio ? (
+                    <audio controls src={`${API_BASE}/api/sessions/${encodeURIComponent(details.id)}/files/${participant.audio}`} style={{ width: "100%" }} />
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#6c757d" }}>No audio available</div>
+                  )}
+                </div>
+                
+                {/* Participant Transcript */}
+                <div style={{ marginBottom: 12 }}>
+                  <label className="small" style={{ display: "block", marginBottom: 4 }}>Transcript</label>
+                  {participant.transcript ? (
+                    <TextFile sessionId={details.id} file={participant.transcript} label={`${participant.label} Transcript`} />
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#6c757d" }}>No transcript available</div>
+                  )}
+                </div>
+                
+                {/* Participant Summary */}
+                <div>
+                  <label className="small" style={{ display: "block", marginBottom: 4 }}>Summary</label>
+                  {participant.summary ? (
+                    <TextFile sessionId={details.id} file={participant.summary} label={`${participant.label} Summary`} />
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#6c757d" }}>No summary available</div>
+                  )}
+                </div>
               </div>
-            ) : null
-          ))}
+            ))}
+          </div>
         </div>
       )}
-
-      <h3>Transcripts</h3>
-      {details.files?.mixedTranscript ? (
-        <TextFile sessionId={details.id} file={details.files.mixedTranscript} label="Meeting Transcript" />
-      ) : (
-        <div style={{ fontSize: 12, color: "#6c757d" }}>No meeting transcript yet</div>
-      )}
-      {details.participants?.map((participant) => (
-        participant.transcript ? (
-          <TextFile
-            key={`${participant.label}-transcript`}
-            sessionId={details.id}
-            file={participant.transcript}
-            label={`${participant.label} Transcript`}
-          />
-        ) : null
-      ))}
-
-      <h3>Summaries</h3>
-      {details.files?.meetingSummary ? (
-        <TextFile sessionId={details.id} file={details.files.meetingSummary} label="Meeting Summary" />
-      ) : (
-        <div style={{ fontSize: 12, color: "#6c757d" }}>No meeting summary yet</div>
-      )}
-      {details.participants?.map((participant) => (
-        participant.summary ? (
-          <TextFile
-            key={`${participant.label}-summary`}
-            sessionId={details.id}
-            file={participant.summary}
-            label={`${participant.label} Summary`}
-          />
-        ) : null
-      ))}
     </div>
   );
 }

@@ -443,6 +443,7 @@ export class Session {
     this.metadata.botName = this.metaState.botName ?? this.metadata.botName;
     this.metadata.audioFormat = this.metaState.audioFormat ?? this.metadata.audioFormat;
     this.metadata.audioFiles = this.audioFiles;
+    this.metadata.participants = Array.from(this.participantInfo.values());
 
     const finalize = async () => {
       await this.closeAudioWriters();

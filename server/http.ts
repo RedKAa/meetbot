@@ -67,7 +67,7 @@ async function handleRequest(context: ApiContext, req: IncomingMessage, res: Ser
   if (pathname === '/api/recordings' && req.method === 'POST') {
     const body = await readJsonBody(req).catch(() => undefined as any);
     const meetingUrl = safeString(body?.meetingUrl);
-    const botName = safeString(body?.botName) || 'HopFast';
+    const botName = safeString(body?.botName) || context.config.botName;
     const durationSecRaw = body?.durationSec;
     const durationSec = Number.isFinite(Number(durationSecRaw)) ? Number(durationSecRaw) : undefined;
 
@@ -189,8 +189,9 @@ async function getSessionDetails(context: ApiContext, id: string): Promise<any |
   const exists = (rel: string) => fs.existsSync(path.join(baseDir!, rel));
   const files = {
     mixedAudio: exists('mixed_audio.wav') ? 'mixed_audio.wav' : null,
-    mixedTranscript: exists(path.join('transcripts', 'mixed_transcript.txt')) ? 'transcripts/mixed_transcript.txt' : null,
-    meetingSummary: exists(path.join('summaries', 'meeting_summary.txt')) ? 'summaries/meeting_summary.txt' : null
+    mixedTranscript: exists(path.join('transcripts', 'mixed_audio.wav.json')) ? 'transcripts/mixed_audio.wav.json' : null,
+    meetingSummary: exists(path.join('summaries', 'overall_summary.json')) ? 'summaries/overall_summary.json' : 
+                   exists('meeting-summary.json') ? 'meeting-summary.json' : null
   } as const;
 
   const participants: Array<{ label: string; audio?: string | null; transcript?: string | null; summary?: string | null }> = [];

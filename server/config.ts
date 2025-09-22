@@ -11,6 +11,7 @@ export interface RecorderConfig {
   enableVideoCapture: boolean;
   phoWhisperWebhookUrl?: string;
   deepgramApiKey?: string;
+  botName: string;
 }
 
 const DEFAULT_PORT = 8765;
@@ -38,7 +39,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RecorderConfig
       : undefined,
     deepgramApiKey: typeof env.DEEPGRAM_API_KEY === 'string' && env.DEEPGRAM_API_KEY.trim().length > 0
       ? env.DEEPGRAM_API_KEY.trim()
-      : undefined
+      : undefined,
+    botName: typeof env.BOT_NAME === 'string' && env.BOT_NAME.trim().length > 0
+      ? env.BOT_NAME.trim()
+      : 'HopFast'
   };
 }
 

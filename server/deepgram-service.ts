@@ -262,11 +262,25 @@ export class DeepgramService {
     overall: SummaryResult;
     participants: { [participantId: string]: SummaryResult };
   }> {
-    // Generate overall summary
-    const allText = Object.values(transcripts).map(t => t.text).join(' ');
-    const overallSummary = await this.summarizeText(allText, 'Tóm tắt cuộc họp:');
+    // Generate overall summary - use mixed_audio.wav if available, otherwise combine participant transcripts
+    let overallText = '';
+    const mixedAudioTranscript = transcripts['mixed_audio.wav'];
     
-    // Save overall summary
+    if (mixedAudioTranscript) {
+      // Use mixed audio transcript as it contains the complete meeting
+      overallText = mixedAudioTranscript.text;
+    } else {
+      // Fallback: combine all participant transcripts
+      overallText = Object.values(participantTranscripts).join(' ');
+    }
+    
+    const overallSummary = await this.summarizeText(overallText, 'Tóm tắt cuộc họp:');
+    
+    // Save overall summary as meeting-summary.json at root level (same level as mixed_audio.wav)
+    const meetingSummaryPath = path.join(path.dirname(summariesDir), 'meeting-summary.json');
+    fs.writeFileSync(meetingSummaryPath, JSON.stringify(overallSummary, null, 2));
+    
+    // Also save in summaries directory for backward compatibility
     const overallSummaryPath = path.join(summariesDir, 'overall_summary.json');
     fs.writeFileSync(overallSummaryPath, JSON.stringify(overallSummary, null, 2));
 
