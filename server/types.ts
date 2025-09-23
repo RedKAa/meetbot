@@ -84,3 +84,23 @@ export interface SessionSummary {
   error?: string;
 }
 
+// New interfaces for enhanced summarization
+export interface TranscriptionResult {
+  text: string;
+  confidence: number;
+  duration: number;
+  language: string;
+  deepgramSummary?: string; // Summary from Deepgram API
+}
+
+export interface SummaryResult {
+  summary: string;
+  keyPoints: string[];
+  source: 'deepgram' | 'custom' | 'pho-whisper' | 'openai'; // Track source of summary
+  confidence?: number;
+  generatedAt: string;
+  actionItems?: string[];
+  decisions?: string[];
+  topics?: string[];
+}
+

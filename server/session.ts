@@ -568,10 +568,24 @@ export class Session {
 
   private async processPhoWhisper(archivePath: string): Promise<void> {
     try {
-      // Use DeepgramService instead of PhoWhisperService for Vietnamese transcription
+      const { config } = this.deps;
+      
+      // Use DeepgramService with enhanced summarization
       const deepgramService = new DeepgramService();
-      await deepgramService.processMeetingFolder(archivePath);
-      this.sessionLogger.info({ archivePath }, 'Deepgram processing completed successfully');
+      
+      // Enable summarization based on configuration
+      const enableSummarization = config.enableAutoSummarization ?? true;
+      
+      this.sessionLogger.info({ 
+        archivePath, 
+        enableSummarization, 
+        provider: config.summarizationProvider,
+        language: config.summarizationLanguage 
+      }, 'Starting transcription and summarization');
+      
+      await deepgramService.processMeetingFolder(archivePath, enableSummarization);
+      
+      this.sessionLogger.info({ archivePath }, 'Deepgram processing with summarization completed successfully');
     } catch (error) {
       this.sessionLogger.error({ error, archivePath }, 'Deepgram processing failed');
       throw error;

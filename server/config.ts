@@ -12,6 +12,12 @@ export interface RecorderConfig {
   phoWhisperWebhookUrl?: string;
   deepgramApiKey?: string;
   botName: string;
+  // Enhanced summarization settings
+  enableAutoSummarization: boolean;
+  summarizationProvider: 'deepgram' | 'pho-whisper' | 'openai' | 'auto';
+  summarizationLanguage: string;
+  openaiApiKey?: string;
+  openaiModel: string;
 }
 
 const DEFAULT_PORT = 8765;
@@ -42,8 +48,34 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RecorderConfig
       : undefined,
     botName: typeof env.BOT_NAME === 'string' && env.BOT_NAME.trim().length > 0
       ? env.BOT_NAME.trim()
-      : 'HopFast'
+      : 'HopFast',
+    // Enhanced summarization configuration
+    enableAutoSummarization: normaliseBoolean(env.ENABLE_AUTO_SUMMARIZATION, true),
+    summarizationProvider: normaliseSummarizationProvider(env.SUMMARIZATION_PROVIDER),
+    summarizationLanguage: typeof env.SUMMARIZATION_LANGUAGE === 'string' && env.SUMMARIZATION_LANGUAGE.trim().length > 0
+      ? env.SUMMARIZATION_LANGUAGE.trim()
+      : 'vi',
+    openaiApiKey: typeof env.OPENAI_API_KEY === 'string' && env.OPENAI_API_KEY.trim().length > 0
+      ? env.OPENAI_API_KEY.trim()
+      : undefined,
+    openaiModel: typeof env.OPENAI_MODEL === 'string' && env.OPENAI_MODEL.trim().length > 0
+      ? env.OPENAI_MODEL.trim()
+      : 'gpt-4o-mini'
   };
+}
+
+function normaliseSummarizationProvider(value?: string): 'deepgram' | 'pho-whisper' | 'openai' | 'auto' {
+  switch ((value ?? '').toLowerCase()) {
+    case 'deepgram':
+      return 'deepgram';
+    case 'pho-whisper':
+      return 'pho-whisper';
+    case 'openai':
+      return 'openai';
+    case 'auto':
+    default:
+      return 'auto';
+  }
 }
 
 function normaliseEnv(value?: string): RecorderConfig['env'] {

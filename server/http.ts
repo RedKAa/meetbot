@@ -185,7 +185,7 @@ async function listCompletedSessions(context: ApiContext): Promise<any[]> {
 
 async function getSessionDetails(context: ApiContext, id: string): Promise<any | null> {
   // Try live sessions first
-  let sessionPath = path.join(context.config.recordingsRoot, 'live', `session_${id}`);
+  let sessionPath = path.join(context.config.recordingsRoot, 'completed', id);
   let summaryPath = path.join(sessionPath, 'session-summary.json');
   
   try {
