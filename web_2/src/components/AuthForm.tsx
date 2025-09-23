@@ -26,9 +26,7 @@ export function AuthForm({ mode, onToggleMode }: AuthFormProps) {
     try {
       if (mode === 'login') {
         const result = await login(email, password);
-        if (result.success) {
-          toast.success('Đăng nhập thành công!');
-        } else {
+        if (!result.success) {
           toast.error(result.error || 'Đăng nhập thất bại');
         }
       } else {

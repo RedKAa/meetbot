@@ -50,9 +50,7 @@ export default function Home() {
     
     try {
       const result = await login(loginData.email, loginData.password);
-      if (result.success) {
-        toast.success("Đăng nhập thành công!");
-      } else {
+      if (!result.success){
         toast.error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
       }
     } catch (error) {

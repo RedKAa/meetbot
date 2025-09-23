@@ -10,6 +10,7 @@ import { CalendarDays, Clock, Users, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { sessionApi } from '@/lib/api';
 import { motion } from "framer-motion";
+import { BackgroundGradientAnimation } from '@/components/BackgroundGradientAnimation';
 
 interface SessionListItem {
   id: string;
@@ -223,52 +224,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Background gradient animation */}
-      <div className="fixed inset-0 -z-10 overflow-hidden">
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900"
-          animate={{
-            background: [
-              "linear-gradient(45deg, #1e3a8a, #581c87, #312e81)",
-              "linear-gradient(135deg, #312e81, #1e3a8a, #581c87)",
-              "linear-gradient(225deg, #581c87, #312e81, #1e3a8a)",
-              "linear-gradient(315deg, #1e3a8a, #581c87, #312e81)",
-            ],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-        />
-        
-        {/* Floating orbs */}
-        {[...Array(4)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute rounded-full bg-gradient-to-r from-cyan-400/10 to-blue-500/10 blur-xl"
-            style={{
-              width: Math.random() * 200 + 100,
-              height: Math.random() * 200 + 100,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              x: [0, Math.random() * 100 - 50],
-              y: [0, Math.random() * 100 - 50],
-              scale: [1, 1.1, 1],
-              opacity: [0.2, 0.4, 0.2],
-            }}
-            transition={{
-              duration: Math.random() * 8 + 8,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: Math.random() * 3,
-            }}
-          />
-        ))}
-      </div>
-
+      <BackgroundGradientAnimation />
       <div className="relative z-10 container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           <motion.div 
