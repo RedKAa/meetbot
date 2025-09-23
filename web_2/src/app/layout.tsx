@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from '@/contexts/AuthContext';
-import { Toaster } from '@/components/ui/sonner';
 import Navbar from '@/components/Navbar';
+import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -16,10 +16,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MeetBot AI - Cuộc họp thông minh với AI",
+  title: "HopFast - Cuộc họp thông minh với AI",
   description: "Tự động ghi âm, phân tích và tóm tắt cuộc họp Google Meet với công nghệ AI tiên tiến",
   keywords: "AI, meeting, recording, Google Meet, transcription, analysis",
-  authors: [{ name: "MeetBot AI Team" }],
+  authors: [{ name: "HopFast Team" }],
   viewport: "width=device-width, initial-scale=1",
 };
 
@@ -36,6 +36,7 @@ export default function RootLayout({
           <main className="relative">
             {children}
           </main>
+          <Toaster />
         </AuthProvider>
       </body>
     </html>

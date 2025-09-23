@@ -1,9 +1,9 @@
 ## [x] Pharse 0: Simple Reactjs WebUI
 ## [x] Pharse 1: Intergrate with deepgram API for transcription and summary
 
-## [ ] Pharse 3: Update WebUI to show meeting summary
+## [X] Pharse 2: Update WebUI to show meeting summary
 
-1. [ ] Hủy mục nhập tên bot, mặc định là HopFast đặt trong .env
+1Hủy mục nhập tên bot, mặc định là HopFast đặt trong .env
 2. [ ] Thêm mục nhập tên cuộc họp để lưu trữ, tiện quản lí các cuộc họp
 3. [ ] Mỗi participant hãy tạo file transcription, summary tương ứng với file .wav
 4. [ ] mixed_audio.wav.json đổi tên thành meeting-summary.json khi lưu, đặt chung level với mixed_audio.wav
@@ -12,4 +12,16 @@
 7. [ ] Load transcription và summary lên front-end UI
 8. [ ] double check logic get summary có vẻ nội dung đang bị lặp lại thêm 1 lần
 
-## [ ] Pharse 4: Use React Lib MCP to make better UI
+## [X] Pharse 3: Use React Lib MCP to make better UI
+
+## [X] Pharse 4: Use Nextjs Lib MCP to make better UI
+
+## [X] Pharse 5: Enhance User Experience
+1. [ ] Add error toast on login/register form
+2. [ ] update webUI duration ms to mins then convert it to ms before call server
+3. [ ] dashboard UI font color and background color not match, improve card UI 
+4. [ ] start and stop meeting animation
+5. [ ] fullName show in UI
+6. [ ] add userid to folder data -> filter
+
+

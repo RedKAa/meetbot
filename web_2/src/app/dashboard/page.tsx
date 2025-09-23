@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { CalendarDays, Clock, Users, Mic } from 'lucide-react';
 import { toast } from 'sonner';
 import { sessionApi } from '@/lib/api';
+import { motion } from "framer-motion";
 
 interface SessionListItem {
   id: string;
@@ -52,25 +53,29 @@ function StatCard({ title, value, description, icon: Icon, color = "default" }: 
   title: string;
   value: string | number;
   description: string;
-  icon: any;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   color?: "default" | "blue" | "green" | "orange";
 }) {
   const colorClasses = {
-    default: "text-muted-foreground",
-    blue: "text-blue-600",
-    green: "text-green-600",
-    orange: "text-orange-600"
+    blue: "text-blue-400",
+    green: "text-green-400", 
+    orange: "text-orange-400",
+    default: "text-cyan-400"
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className={`h-4 w-4 ${colorClasses[color]}`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
+    <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-white/70">{title}</p>
+            <p className="text-2xl font-bold text-white">{value}</p>
+            <p className="text-xs text-white/60">{description}</p>
+          </div>
+          <div className={`p-3 rounded-full bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm ${colorClasses[color]}`}>
+            <Icon className="h-6 w-6" />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -94,9 +99,9 @@ export default function DashboardPage() {
           sessionApi.getCompletedSessions().catch(() => ({ items: [] }))
         ]);
 
-        const liveSessions = liveRes.items ?? [];
-        const completedSessions = completedRes.items ?? [];
-        const allSessions = [...liveSessions, ...completedSessions];
+        const liveSessions = (liveRes.items ?? []) as SessionListItem[];
+        const completedSessions = (completedRes.items ?? []) as SessionListItem[];
+        const allSessions = [...liveSessions, ...completedSessions] as SessionListItem[];
 
         // Calculate stats
         const totalMeetings = allSessions.length;
@@ -115,7 +120,7 @@ export default function DashboardPage() {
           const dayName = date.toLocaleDateString('vi-VN', { weekday: 'short' });
           
           // Count meetings for this day
-          const dayMeetings = allSessions.filter(session => {
+          const dayMeetings = allSessions.filter((session: SessionListItem) => {
             if (!session.startedAt) return false;
             const sessionDate = new Date(session.startedAt);
             return sessionDate.toDateString() === date.toDateString();
@@ -135,7 +140,7 @@ export default function DashboardPage() {
           date.setMonth(date.getMonth() - i);
           const monthName = date.toLocaleDateString('vi-VN', { month: 'short' });
           
-          const monthMeetings = allSessions.filter(session => {
+          const monthMeetings = allSessions.filter((session: SessionListItem) => {
             if (!session.startedAt) return false;
             const sessionDate = new Date(session.startedAt);
             return sessionDate.getMonth() === date.getMonth() && 
@@ -217,180 +222,289 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Tổng quan thống kê các cuộc họp của bạn
-          </p>
-        </div>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background gradient animation */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900"
+          animate={{
+            background: [
+              "linear-gradient(45deg, #1e3a8a, #581c87, #312e81)",
+              "linear-gradient(135deg, #312e81, #1e3a8a, #581c87)",
+              "linear-gradient(225deg, #581c87, #312e81, #1e3a8a)",
+              "linear-gradient(315deg, #1e3a8a, #581c87, #312e81)",
+            ],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+        
+        {/* Floating orbs */}
+        {[...Array(4)].map((_, i) => (
+          <motion.div
+            key={i}
+            className="absolute rounded-full bg-gradient-to-r from-cyan-400/10 to-blue-500/10 blur-xl"
+            style={{
+              width: Math.random() * 200 + 100,
+              height: Math.random() * 200 + 100,
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+            }}
+            animate={{
+              x: [0, Math.random() * 100 - 50],
+              y: [0, Math.random() * 100 - 50],
+              scale: [1, 1.1, 1],
+              opacity: [0.2, 0.4, 0.2],
+            }}
+            transition={{
+              duration: Math.random() * 8 + 8,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: Math.random() * 3,
+            }}
+          />
+        ))}
+      </div>
 
-        {loadingStats ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : stats ? (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                title="Tổng số cuộc họp"
-                value={stats.totalMeetings}
-                description="Tất cả cuộc họp đã ghi"
-                icon={CalendarDays}
-                color="blue"
-              />
-              <StatCard
-                title="Tổng thời gian"
-                value={formatDuration(stats.totalDuration)}
-                description="Thời gian ghi âm tổng cộng"
-                icon={Clock}
-                color="green"
-              />
-              <StatCard
-                title="Thời gian trung bình"
-                value={formatDuration(stats.averageDuration)}
-                description="Thời gian trung bình mỗi cuộc họp"
-                icon={Users}
-                color="orange"
-              />
-              <StatCard
-                title="Đang hoạt động"
-                value={stats.activeMeetings}
-                description="Cuộc họp đang diễn ra"
-                icon={Mic}
-                color="default"
-              />
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <motion.div 
+            className="mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent">Dashboard</h1>
+            <p className="text-white/70 mt-2">
+              Tổng quan thống kê các cuộc họp của bạn
+            </p>
+          </motion.div>
+
+          {loadingStats ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
             </div>
+          ) : stats ? (
+            <motion.div 
+              className="space-y-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+            >
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  title="Tổng số cuộc họp"
+                  value={stats.totalMeetings}
+                  description="Tất cả cuộc họp đã ghi"
+                  icon={CalendarDays}
+                  color="blue"
+                />
+                <StatCard
+                  title="Tổng thời gian"
+                  value={formatDuration(stats.totalDuration)}
+                  description="Thời gian ghi âm tổng cộng"
+                  icon={Clock}
+                  color="green"
+                />
+                <StatCard
+                  title="Thời gian trung bình"
+                  value={formatDuration(stats.averageDuration)}
+                  description="Thời gian trung bình mỗi cuộc họp"
+                  icon={Users}
+                  color="orange"
+                />
+                <StatCard
+                  title="Đang hoạt động"
+                  value={stats.activeMeetings}
+                  description="Cuộc họp đang diễn ra"
+                  icon={Mic}
+                  color="default"
+                />
+              </div>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Weekly Meetings Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cuộc họp trong tuần</CardTitle>
-                  <CardDescription>Số lượng cuộc họp 7 ngày qua</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={stats.weeklyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="day" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value, name) => [
-                          name === 'meetings' ? `${value} cuộc họp` : `${value} phút`,
-                          name === 'meetings' ? 'Số cuộc họp' : 'Thời gian'
-                        ]}
-                      />
-                      <Bar dataKey="meetings" fill="#3b82f6" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Weekly Meetings Chart */}
+                <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white">Cuộc họp trong tuần</CardTitle>
+                    <CardDescription className="text-white/70">Số lượng cuộc họp 7 ngày qua</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={stats.weeklyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis 
+                          dataKey="day" 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <Tooltip 
+                          formatter={(value, name) => [
+                            name === 'meetings' ? `${value} cuộc họp` : `${value} phút`,
+                            name === 'meetings' ? 'Số cuộc họp' : 'Thời gian'
+                          ]}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            borderRadius: '8px',
+                            color: '#ffffff',
+                            backdropFilter: 'blur(10px)'
+                          }}
+                        />
+                        <Bar dataKey="meetings" fill="#06b6d4" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
 
-              {/* Monthly Trend */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Xu hướng theo tháng</CardTitle>
-                  <CardDescription>Số lượng cuộc họp 6 tháng qua</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={stats.monthlyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value) => [`${value} cuộc họp`, 'Số cuộc họp']}
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="meetings" 
-                        stroke="#22c55e" 
-                        strokeWidth={2}
-                        dot={{ fill: '#22c55e' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
+                {/* Monthly Trend */}
+                <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white">Xu hướng theo tháng</CardTitle>
+                    <CardDescription className="text-white/70">Số lượng cuộc họp 6 tháng qua</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={stats.monthlyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <Tooltip 
+                          formatter={(value) => [`${value} cuộc họp`, 'Số cuộc họp']}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            borderRadius: '8px',
+                            color: '#ffffff',
+                            backdropFilter: 'blur(10px)'
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="meetings" 
+                          stroke="#22c55e" 
+                          strokeWidth={2}
+                          dot={{ fill: '#22c55e' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
 
-            {/* Status Distribution */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-1">
-                <CardHeader>
-                  <CardTitle>Trạng thái cuộc họp</CardTitle>
-                  <CardDescription>Phân bố theo trạng thái</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={stats.statusData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {stats.statusData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [`${value} cuộc họp`, 'Số lượng']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="mt-4 space-y-2">
-                    {stats.statusData.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="text-sm">{item.name}</span>
+              {/* Status Distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-1 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white">Trạng thái cuộc họp</CardTitle>
+                    <CardDescription className="text-white/70">Phân bố theo trạng thái</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={stats.statusData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {stats.statusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value) => [`${value} cuộc họp`, 'Số lượng']}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            borderRadius: '8px',
+                            color: '#ffffff',
+                            backdropFilter: 'blur(10px)'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="mt-4 space-y-2">
+                      {stats.statusData.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: item.color }}
+                            />
+                            <span className="text-sm text-white">{item.name}</span>
+                          </div>
+                          <Badge variant="secondary" className="bg-white/10 backdrop-blur-sm border-white/20 text-white">{item.value}</Badge>
                         </div>
-                        <Badge variant="secondary">{item.value}</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle>Thời gian ghi âm hàng tuần</CardTitle>
-                  <CardDescription>Tổng thời gian ghi âm theo ngày trong tuần</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={stats.weeklyData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="day" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value) => [`${value} phút`, 'Thời gian ghi âm']}
-                      />
-                      <Bar dataKey="duration" fill="#f59e0b" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground">
-                Không thể tải dữ liệu thống kê
-              </p>
-            </CardContent>
-          </Card>
-        )}
+                <Card className="lg:col-span-2 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+                  <CardHeader>
+                    <CardTitle className="text-white">Thời gian ghi âm hàng tuần</CardTitle>
+                    <CardDescription className="text-white/70">Tổng thời gian ghi âm theo ngày trong tuần</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={stats.weeklyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis 
+                          dataKey="day" 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <YAxis 
+                          tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 12 }}
+                          axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
+                        />
+                        <Tooltip 
+                          formatter={(value) => [`${value} phút`, 'Thời gian ghi âm']}
+                          contentStyle={{
+                            backgroundColor: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            borderRadius: '8px',
+                            color: '#ffffff',
+                            backdropFilter: 'blur(10px)'
+                          }}
+                        />
+                        <Bar dataKey="duration" fill="#f59e0b" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </div>
+            </motion.div>
+          ) : (
+            <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+              <CardContent className="pt-6">
+                <p className="text-center text-white/70">
+                  Không thể tải dữ liệu thống kê
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { LandingPage } from "@/components/LandingPage";
 import { LoadingSpinner, FullScreenLoader } from "@/components/LoadingSpinner";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BackgroundGradientAnimation } from "@/components/BackgroundGradientAnimation";
 import { MeetingControl } from "@/components/MeetingControl";
-import { Bot, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { Bot, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Home() {
@@ -49,9 +49,14 @@ export default function Home() {
     setAuthLoading(true);
     
     try {
-      await login(loginData.email, loginData.password);
-      toast.success("Đăng nhập thành công!");
+      const result = await login(loginData.email, loginData.password);
+      if (result.success) {
+        toast.success("Đăng nhập thành công!");
+      } else {
+        toast.error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+      }
     } catch (error) {
+      console.error("Login error:", error);
       toast.error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
     } finally {
       setAuthLoading(false);
@@ -69,9 +74,22 @@ export default function Home() {
     setAuthLoading(true);
     
     try {
-      await register(registerData.email, registerData.password);
-      toast.success("Đăng ký thành công!");
+      const result = await register(registerData.email, registerData.password);
+      toast("Event has been created.")
+      if (result.success) {
+        toast.success("Đăng ký thành công!");
+        // Reset form after successful registration
+        setRegisterData({
+          name: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+        });
+      } else {
+        toast.error(result.error || "Đăng ký thất bại. Email có thể đã được sử dụng.");
+      }
     } catch (error) {
+      console.error("Registration error:", error);
       toast.error("Đăng ký thất bại. Email có thể đã được sử dụng.");
     } finally {
       setAuthLoading(false);
@@ -79,7 +97,7 @@ export default function Home() {
   };
 
   if (isLoading) {
-    return <FullScreenLoader text="Khởi tạo MeetBot AI..." />;
+    return <FullScreenLoader text="Khởi tạo HopFast..." />;
   }
 
   if (!user && !showAuth) {
@@ -108,7 +126,7 @@ export default function Home() {
                   <Bot className="w-8 h-8 text-white" />
                 </motion.div>
                 <CardTitle className="text-2xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent">
-                  MeetBot AI
+                  HopFast
                 </CardTitle>
                 <p className="text-white/70 text-sm mt-2">
                   Trải nghiệm cuộc họp thông minh với AI

@@ -2,12 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authApi } from '@/lib/api';
-
-interface User {
-  id: string;
-  email: string;
-  createdAt: string;
-}
+import type { User } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -41,13 +36,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await authApi.login(email, password);
 
       if (data.success) {
-        setUser(data.user);
+        setUser(data.user as User);
         localStorage.setItem('user', JSON.stringify(data.user));
         return { success: true };
       } else {
         return { success: false, error: data.error };
       }
     } catch (error) {
+      console.error("Login error:", error);
       return { success: false, error: 'Login failed' };
     }
   };
@@ -62,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: data.error };
       }
     } catch (error) {
+      console.error("Registration error:", error);
       return { success: false, error: 'Registration failed' };
     }
   };

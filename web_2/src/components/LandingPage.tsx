@@ -9,11 +9,9 @@ import {
   Video, 
   Brain, 
   Zap, 
-  Shield, 
   Users, 
   ArrowRight,
   Play,
-  Mic,
   FileText,
   BarChart3
 } from "lucide-react";
@@ -74,7 +72,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               <Bot className="w-6 h-6 text-white" />
             </motion.div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent">
-              MeetBot AI
+              HopFast
             </h1>
           </div>
           
@@ -141,14 +139,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
             
-            <Button 
-              variant="outline"
-              size="lg"
-              className="border-white/30 text-white hover:bg-white/10 px-8 py-4 rounded-full text-lg backdrop-blur-sm"
-            >
-              <Play className="w-5 h-5 mr-2" />
-              Xem demo
-            </Button>
           </motion.div>
         </div>
       </motion.section>
@@ -254,7 +244,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               </h3>
               
               <p className="text-white/70 text-lg mb-8 max-w-2xl mx-auto">
-                Tham gia cùng hàng nghìn người dùng đã tin tưởng MeetBot AI 
+                Tham gia cùng hàng nghìn người dùng đã tin tưởng HopFast
                 để tối ưu hóa cuộc họp của họ.
               </p>
               
@@ -280,7 +270,7 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       >
         <div className="max-w-6xl mx-auto text-center">
           <p className="text-white/50 text-sm">
-            © 2024 MeetBot AI. Tất cả quyền được bảo lưu.
+            © 2024 HopFast. Tất cả quyền được bảo lưu.
           </p>
         </div>
       </motion.footer>
