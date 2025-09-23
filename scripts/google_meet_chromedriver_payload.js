@@ -187,7 +187,7 @@ class StyleManager {
             this.checkNeededInteractions();
         }, 5000);
     }
-    
+
     async processMixedAudioTrack() {
         try {
             // Create processor to get raw audio frames from the mixed audio track
