@@ -46,7 +46,7 @@ export default function Navbar() {
             </motion.div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent">
-                MeetBot AI
+                HopFast
               </h1>
               <p className="text-xs text-white/60 -mt-1">Cuộc họp thông minh</p>
             </div>

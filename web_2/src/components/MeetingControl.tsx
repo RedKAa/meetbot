@@ -107,8 +107,8 @@ interface SessionDetailsResponse {
 
 function StartCard({ onStarted }: { onStarted?: () => void }) {
   const [meetingUrl, setMeetingUrl] = useState('');
-  const [botName, setBotName] = useState('MeetBot AI');
-  const [duration, setDuration] = useState('1800');
+  const [botName, setBotName] = useState('HopFast');
+  const [duration, setDuration] = useState('30'); // Default 30 minutes
   const [isLoading, setIsLoading] = useState(false);
 
   const handleStart = async () => {
@@ -119,13 +119,15 @@ function StartCard({ onStarted }: { onStarted?: () => void }) {
 
     setIsLoading(true);
     try {
-      await sessionApi.startRecording(meetingUrl.trim(), botName.trim() || 'MeetBot AI', parseInt(duration) || 1800);
+      // Convert minutes to seconds for API call
+      const durationInSeconds = (parseInt(duration) || 30) * 60;
+      await sessionApi.startRecording(meetingUrl.trim(), botName.trim() || 'HopFast', durationInSeconds);
       
       toast.success('Đã bắt đầu ghi âm cuộc họp!');
       setMeetingUrl('');
       if (onStarted) onStarted();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
+    } catch (_error) {
+      console.error('Failed to start recording:', _error);
       toast.error('Không thể bắt đầu ghi âm. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -195,7 +197,7 @@ function StartCard({ onStarted }: { onStarted?: () => void }) {
               </Label>
               <Input
                 id="botName"
-                placeholder="MeetBot AI"
+                placeholder="HopFast"
                 value={botName}
                 onChange={(e) => setBotName(e.target.value)}
                 className="bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-cyan-400 focus:ring-cyan-400/20"
@@ -211,12 +213,12 @@ function StartCard({ onStarted }: { onStarted?: () => void }) {
             >
               <Label htmlFor="duration" className="text-white/90 font-medium flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                Thời gian (giây)
+                Thời gian (phút)
               </Label>
               <Input
                 id="duration"
                 type="number"
-                placeholder="1800"
+                placeholder="30"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 className="bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:border-cyan-400 focus:ring-cyan-400/20"
@@ -229,6 +231,8 @@ function StartCard({ onStarted }: { onStarted?: () => void }) {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
             <Button 
               onClick={handleStart} 
@@ -236,15 +240,34 @@ function StartCard({ onStarted }: { onStarted?: () => void }) {
               className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-semibold py-3 rounded-xl shadow-lg hover:shadow-cyan-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <LoadingSpinner size="sm" />
+                <motion.div 
+                  className="flex items-center gap-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  >
+                    <LoadingSpinner size="sm" />
+                  </motion.div>
                   <span>Đang khởi tạo...</span>
-                </div>
+                </motion.div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Play className="w-5 h-5" />
+                <motion.div 
+                  className="flex items-center gap-2"
+                  whileHover={{ x: 2 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                >
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                  >
+                    <Play className="w-5 h-5" />
+                  </motion.div>
                   <span>Bắt đầu ghi âm</span>
-                </div>
+                </motion.div>
               )}
             </Button>
           </motion.div>
@@ -291,8 +314,8 @@ function SessionsList({
     >
       <Card className={`bg-gradient-to-br backdrop-blur-xl border shadow-lg transition-all duration-300 ${
         selectedId === session.id 
-          ? 'from-cyan-500/20 to-blue-500/20 border-cyan-400/50 shadow-cyan-500/25' 
-          : 'from-white/10 to-white/5 border-white/20 hover:from-white/15 hover:to-white/10'
+          ? 'from-cyan-500/25 to-blue-500/25 border-cyan-400/60 shadow-cyan-500/30 ring-1 ring-cyan-400/30' 
+          : 'from-white/12 to-white/8 border-white/25 hover:from-white/18 hover:to-white/12 hover:border-white/35'
       }`}>
         <CardContent className="p-6">
           <div className="flex items-start justify-between mb-4">
@@ -303,16 +326,27 @@ function SessionsList({
                     ? 'bg-gradient-to-r from-green-400 to-emerald-500' 
                     : 'bg-gradient-to-r from-gray-400 to-gray-500'
                 }`}
-                animate={isLive ? { scale: [1, 1.1, 1] } : {}}
-                transition={{ duration: 2, repeat: Infinity }}
+                animate={isLive ? { 
+                  scale: [1, 1.1, 1],
+                  boxShadow: [
+                    "0 0 0 0 rgba(34, 197, 94, 0.7)",
+                    "0 0 0 10px rgba(34, 197, 94, 0)",
+                    "0 0 0 0 rgba(34, 197, 94, 0)"
+                  ]
+                } : {}}
+                transition={{ 
+                  duration: 2, 
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
               >
                 {isLive ? <Activity className="w-5 h-5 text-white" /> : <Clock className="w-5 h-5 text-white" />}
               </motion.div>
               <div>
-                <h3 className="font-semibold text-white text-lg">
+                <h3 className="font-semibold text-white/95 text-lg">
                   {session.meetingUrl?.split('/').pop()?.substring(0, 12) || session.id}
                 </h3>
-                <p className="text-white/70 text-sm">
+                <p className="text-white/75 text-sm">
                   {session.startedAt ? formatDate(session.startedAt) : 'N/A'}
                 </p>
               </div>
@@ -328,10 +362,31 @@ function SessionsList({
                 } backdrop-blur-sm`}
               >
                 {isLive ? (
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  <motion.div 
+                    className="flex items-center gap-1"
+                    animate={{ 
+                      opacity: [1, 0.7, 1]
+                    }}
+                    transition={{ 
+                      duration: 1.5, 
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    <motion.div 
+                      className="w-2 h-2 bg-green-400 rounded-full"
+                      animate={{ 
+                        scale: [1, 1.2, 1],
+                        opacity: [1, 0.8, 1]
+                      }}
+                      transition={{ 
+                        duration: 1, 
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    />
                     Đang ghi
-                  </div>
+                  </motion.div>
                 ) : (
                   'Hoàn thành'
                 )}
@@ -340,11 +395,11 @@ function SessionsList({
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2 text-white/80">
+            <div className="flex items-center gap-2 text-white/85">
               <Clock className="w-4 h-4" />
               <span>N/A</span>
             </div>
-            <div className="flex items-center gap-2 text-white/80">
+            <div className="flex items-center gap-2 text-white/85">
               <Users className="w-4 h-4" />
               <span>0 người</span>
             </div>
@@ -360,7 +415,7 @@ function SessionsList({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: 0.2 }}
     >
-      <Card className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border-white/20 shadow-2xl">
+      <Card className="bg-gradient-to-br from-white/12 to-white/8 backdrop-blur-xl border-white/25 shadow-2xl">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <motion.div 
@@ -376,7 +431,7 @@ function SessionsList({
                 <CardTitle className="text-xl font-bold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent">
                   Danh sách phiên họp
                 </CardTitle>
-                <CardDescription className="text-white/70">
+                <CardDescription className="text-white/75">
                   Quản lý và theo dõi các cuộc họp
                 </CardDescription>
               </div>
@@ -873,7 +928,7 @@ export function MeetingControl() {
           <Bot className="w-8 h-8 text-white" />
         </motion.div>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-cyan-200 bg-clip-text text-transparent mb-2">
-          MeetBot AI Dashboard
+          HopFast Dashboard
         </h1>
         <p className="text-white/70 text-lg">
           Quản lý và điều khiển các phiên ghi âm cuộc họp
